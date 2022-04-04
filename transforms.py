@@ -158,7 +158,7 @@ class BatchResize(object):
                 maxes[index] = max(maxes[index], item)
         return maxes
 
-class MyCrop(object):
+class MyCrop(object):  # 左右裁剪1/6 ,下裁剪1/3
     def __init__(self, left_size=1/6, right_size=1/6, bottom_size=1/3):
         self.left_size = left_size
         self.right_size = right_size
@@ -175,3 +175,27 @@ class MyCrop(object):
             target = F.crop(target, top, left, height, width)
             return image, target
         return image
+
+class GetROI(object):
+    def __init__(self, border_size=10):
+        self.border_size = border_size
+
+    def __call__(self, img, mask, landmark):
+        img_w, img_h = img.size
+        y,x = np.where(mask!=0)
+        # 将landmark的值加入
+        x,y = x.tolist(), y.tolist()
+        x.extend([i[0] for i in landmark.values()])
+        y.extend([i[1] for i in landmark.values()])
+        left, right = min(x)-self.border_size, max(x)+self.border_size
+        top, bottom = min(y)-self.border_size, max(y)+self.border_size
+        left = left if left > 0 else 0
+        right = right if right < img_w else img_w
+        top = top if top > 0 else 0
+        bottom = bottom if bottom < img_h else img_h
+        height = bottom-top
+        width = right-left
+        img = F.crop(img, top, left, height, width)
+        mask = F.crop(mask, top, left, height, width)
+        landmark = {i:[j[0]-left, j[1]-top] for i,j in landmark.items()}
+        return img, mask, landmark

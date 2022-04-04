@@ -7,6 +7,7 @@ import torch
 from torch.utils.data import Dataset
 from PIL import Image
 from torchvision.transforms.functional import hflip, resize
+from transforms import GetROI
 import matplotlib.pyplot as plt
 
 
@@ -72,45 +73,36 @@ class YanMianDataset(Dataset):
         # check data
         check_data(curve, landmark, poly_points, json_dir, self.data_type)
 
-        # # 生成mask
-        mask = torch.zeros(6, *mask_array.shape, dtype=torch.float)
-        # poly_curve = np.zeros_like(mask_array)
-        # for i in range(4):
-        #     if i==0 or i==1:  # 两个区域
-        #         poly_curve[mask_array==i+4] = i+1
-        #     elif i==2 or i==3:  # 两条直线
-        #         points = curve[i-3]['Points']
-        #         label = curve[i-3]['Label']
-        #         points_array = np.array(points, dtype=np.int32)[:, :2]
-        #         for j in range(len(points_array) - 1):
-        #             cv2.line(poly_curve, points_array[j], points_array[j + 1], color=label-3, thickness=6)
-        # # mask[0] = torch.as_tensor(poly_curve)
-        # mask = Image.fromarray(poly_curve)
+        # 生成poly_curve 图
+        poly_curve = np.zeros_like(mask_array)
+        for i in range(4):
+            if i==0 or i==1:  # 两个区域
+                poly_curve[mask_array==i+4] = i+1
+            elif i==2 or i==3:  # 两条直线
+                points = curve[i-3]['Points']
+                label = curve[i-3]['Label']
+                points_array = np.array(points, dtype=np.int32)[:, :2]
+                for j in range(len(points_array) - 1):
+                    cv2.line(poly_curve, points_array[j], points_array[j + 1], color=label-3, thickness=6)
+        # poly_curve = Image.fromarray(poly_curve)
+        poly_curve = torch.as_tensor(poly_curve)
+        # 得到标注的ROI区域图像
+        img, poly_curve, landmark = GetROI(border_size=30)(img, poly_curve, landmark)
 
+        # 生成mask
+        mask = torch.zeros(6, *poly_curve.shape, dtype=torch.float)
         # 根据landmark 绘制高斯热图 （进行点分割）
         # heatmap 维度为 c,h,w 因为ToTensor会将Image(c.w,h)也变为(c,h,w)
         for label in landmark:
             point = landmark[label]
-            temp_heatmap = make_2d_heatmap(point, mask_array.shape, max_value=200, var=100)
+            temp_heatmap = make_2d_heatmap(point, poly_curve.shape, max_value=200, var=100)
             mask[label-8] = temp_heatmap
 
-
-        # 背景也需要作为一个类，不然模型会将所有像素分到六个点中（明显不符）
-        # forground = torch.zeros(*mask_array.shape)
-        # for i in mask[1:5]:
-        #     forground+=i
-        # mask[0] = forground.max()-forground
-        # forground = torch.zeros(*mask_array.shape)
-        # for i in mask[6:]:
-        #     forground += i
-        # forground = forground.clip(0, 1)
-        # mask[5] = forground.max() - forground
-
         # 将位于右上角的图片翻转到左上角
-        if need_horizontal_filp(img, landmark):
-            img = hflip(img)
-            mask = hflip(mask)
-            landmark = {i:[width-j[0],j[1]] for i,j in landmark.items()}   # 将landmark也翻转
+        # if need_horizontal_filp(img, landmark):
+        #     img = hflip(img)
+        #     mask = hflip(mask)
+        #     landmark = {i:[width-j[0],j[1]] for i,j in landmark.items()}   # 将landmark也翻转
 
         # resize image
         if self.resize is not None:
@@ -159,9 +151,9 @@ def make_2d_heatmap(landmark, size, max_value = 3, var=5.0):
     :param max_value: 热图中心的最大值
     :param var: 生成热图的方差
     """
-    length, width = size
+    height, width = size
     landmark = (landmark[1], landmark[0])
-    x, y = torch.meshgrid(torch.arange(0, length), torch.arange(0, width), indexing="ij")  # 一个网格有横纵两个坐标
+    x, y = torch.meshgrid(torch.arange(0, height), torch.arange(0, width), indexing="ij")  # 一个网格有横纵两个坐标
     p = torch.stack([x, y], dim=2)
     from math import pi, sqrt
     inner_factor = -1 / (2 * var)
@@ -193,13 +185,13 @@ def need_horizontal_filp(img, landmarks):
     return False
 
 # from transforms import RightCrop
-d = os.getcwd()
-mydata = YanMianDataset(d, data_type='test')  # , transforms=RightCrop(2/3),resize=[256,384]
-# a,b = mydata[0]
-# c =1
-for i in range(len(mydata)):
-    a,b = mydata[i]
-    print(i)
+# d = os.getcwd()
+# mydata = YanMianDataset(d, data_type='test', resize=[320,320])  # , transforms=RightCrop(2/3),resize=[256,384]
+# # a,b = mydata[0]
+# # c =1
+# for i in range(len(mydata)):
+#     a,b = mydata[i]
+#     print(i)
 
 
 # train data 734
