@@ -50,7 +50,6 @@ class YanMianDataset(Dataset):
         img_name = json_data['FileInfo']['Name']
         img_path = os.path.join(img_root, img_name)
         img = Image.open(img_path)
-        width, height = img.size
         target = {}
 
         # get curve, landmark data
@@ -106,6 +105,7 @@ class YanMianDataset(Dataset):
 
         # resize image
         if self.resize is not None:
+            width,height = img.size
             h, w = self.resize
             # 先满足w
             ratio = w/width
