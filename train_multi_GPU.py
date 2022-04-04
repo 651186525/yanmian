@@ -21,9 +21,10 @@ class SegmentationPresetTrain:
         # 这些transforms都是自己写的  T.RandomResize(min_size, max_size)
         # 将图片左边和右边裁去1/6，下方裁去1/3
         # trans = [T.MyCrop(left_size=1/6,right_size=1/6, bottom_size=1/3)]
-        trans = [T.RightCrop(2/3)]
-        if hflip_prob > 0:
-            trans.append(T.RandomHorizontalFlip(hflip_prob))
+        # trans = [T.RightCrop(2/3)]
+        trans = []
+        # if hflip_prob > 0:
+        #     trans.append(T.RandomHorizontalFlip(hflip_prob))
         trans.extend([
             T.ToTensor(),
             T.Normalize(mean=mean, std=std),
@@ -38,7 +39,7 @@ class SegmentationPresetTrain:
 class SegmentationPresetEval:
     def __init__(self, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
         self.transforms = T.Compose([
-            T.RightCrop(2/3),
+            # T.RightCrop(2/3),
             T.ToTensor(),
             T.Normalize(mean=mean, std=std),
         ])
@@ -70,19 +71,19 @@ def main(args):
     # segmentation nun_classes + background
     num_classes = args.num_classes + 1
 
-    mean = (0.2371, 0.2376, 0.2380)
-    std = (0.2200, 0.2202, 0.2204)
+    mean = (0.2292, 0.2299, 0.2304)
+    std = (0.2188, 0.2194, 0.2196)
 
     # 用来保存coco_info的文件
-    results_file = "var100_Adam.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    results_file = "var100_ROI30.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
 
     train_dataset = YanMianDataset(args.data_path,
                                    data_type='train',
-                                   transforms=get_transform(train=True, mean=mean, std=std))
+                                   transforms=get_transform(train=True, mean=mean, std=std),resize=[320,320])
 
     val_dataset = YanMianDataset(args.data_path,
                                  data_type='val',
-                                 transforms=get_transform(train=False, mean=mean, std=std))
+                                 transforms=get_transform(train=False, mean=mean, std=std), resize=[320,320])
 
     print("Creating data loaders")
     if args.distributed:
@@ -221,7 +222,7 @@ if __name__ == "__main__":
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=5, type=int, help='num_classes')
     # 每块GPU上的batch_size
-    parser.add_argument('-b', '--batch-size', default=4, type=int,
+    parser.add_argument('-b', '--batch-size', default=8, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
@@ -248,7 +249,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/heatmap/var100_Adam', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/heatmap/var100_ROI30', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     # 不训练，仅测试

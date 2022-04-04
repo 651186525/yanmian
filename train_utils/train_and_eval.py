@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import torch
 from torch import nn
 import numpy as np
@@ -40,7 +41,6 @@ def criterion(inputs, target, num_classes: int = 2, dice: bool = True, mse:bool 
                 roi_mask = torch.ne(target, ignore_index)
                 pre = x[roi_mask]
                 target_ = target[roi_mask]
-            # loss += nn.MSELoss()(pre, target_)
             loss += nn.functional.mse_loss(pre, target_)
         # 总的损失为： 整幅图像的交叉熵损失和所有类别的dice损失之和
         losses[name] = loss
@@ -61,6 +61,14 @@ def evaluate(model, data_loader, device, num_classes):
     with torch.no_grad():
         for image, target in metric_logger.log_every(data_loader, 100, header):
             image, mask = image.to(device), target['mask'].to(device)
+            ss=image[0]
+            ss=ss.to('cpu').permute(1,2,0)
+            plt.imshow(ss)
+            plt.show()
+            for i in mask[0]:
+                j = i.to('cpu')
+                plt.imshow(j,cmap='gray')
+                plt.show()
             output = model(image)
             output = output['out']
             landmark = target['landmark'][0]

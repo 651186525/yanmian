@@ -53,10 +53,10 @@ def main():
     print(f'average width : {width/len(img_list)}')
     print(f'max height : {height_max}')
     print(f'max width : {width_max}')
-    # mean: [0.22270182 0.22453914 0.22637838]
-    # std: [0.21268971 0.21371627 0.21473691]
-    # average height: 762.9803921568628   # 508
-    # average width: 1088.7843137254902   # 725
+    # mean: [0.22270182 0.22453914 0.22637838]  [0.22922716 0.22991307 0.23040238]
+    # std: [0.21268971 0.21371627 0.21473691]   [0.21878482 0.21936761 0.21957956]
+    # average height: 762.9803921568628     739.983651226158
+    # average width: 1088.7843137254902    1040.2125340599455
     # max height: 866
     # max width: 1260
 
