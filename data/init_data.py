@@ -1,6 +1,7 @@
 import os
 import random
 import SimpleITK as sitk
+import glob
 import numpy as np
 import cv2
 import collections
@@ -50,6 +51,53 @@ def nii_to_mask(nii_path=None, img_save_name=None, binary_TF=False):
     # 二值化后，img_array的取值为0和255；
     # 未二值化前，img_array的取值为0、45和46（其中45和46分别为图中两种不同标签标签的类别id值）。
     cv2.imwrite(img_save_name, img_array)
+
+
+def check_data(curve, landmark, poly_points, json_dir, data_type, detele_file=False):
+    # 检查标记数据
+    check_poly = {4: False, 5: False}
+    check_curve = {6: False, 7: False}
+    for i in curve:  # 已去除短的曲线
+        check_curve[i['Label']] = True
+    for i in poly_points:
+        if len(i['Points']) > 5:
+            check_poly[i['labelType']] = True
+
+    if detele_file:
+        error = 0
+        if len(curve)!=2:
+            error = 1
+        elif len(landmark)!=6:
+            error = 2
+        elif not all(check_poly.values()):
+            error = 3
+        elif not all(check_curve.values()):
+            error = 4
+        if error != 0:
+            # 删除文件 .json和nii.gz
+            error_list = glob.glob(json_dir.split('.')[0]+'*')
+            for i in error_list:
+                os.remove(i)
+
+            # 删除txt中的这一行数据
+            txt_path = os.path.join('./data', data_type+'.txt')
+            json_name = json_dir.split('/')[-1]
+            with open(txt_path, 'r', encoding='gbk') as f:
+                lines = f.readlines()
+            new = ''
+            for line in lines:
+                if line.strip() == json_name:
+                    continue
+                new += line
+            with open(txt_path, 'w') as f:
+                f.write(new)
+        return error
+
+    # 如果曲线条数不为2，或者关键点个数不为6，或者标注的区域没有值，则报错
+    assert len(curve) == 2, '{} have {} curves.'.format(json_dir.split('/')[-1], len(curve))
+    assert len(landmark) == 6, '{} have {} landmarks.'.format(json_dir.split('/')[-1], len(landmark))
+    assert all(check_poly.values()), '{} 上颌骨（下颌骨）未被标注（无label）'.format(json_dir.split('/')[-1])
+    assert all(check_curve.values()), '{} 存在曲线未被标注（无label）'.format(json_dir.split('/')[-1])
 
 
 if __name__ == '__main__':
