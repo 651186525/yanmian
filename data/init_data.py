@@ -11,7 +11,7 @@ def split_data(files_path):
 
     random.seed(0)  # 设置随机种子，保证随机结果可复现
     val_rate = 0.2
-    test_ = False
+    test_ = True
 
     # 获取所有json名称
     files_name = sorted([file for file in os.listdir(files_path) if file.endswith('.json')])
@@ -20,7 +20,7 @@ def split_data(files_path):
     train_files = []
     val_files = []
     if test_ is True:
-        test_index = random.sample(range(0, len(val_index)), k=int(len(val_index) * val_rate))
+        test_index = random.sample(val_index, k=int(len(val_index) * 0.5))
         test_files = []
     for index, file_name in enumerate(files_name):
         if test_ is True and index in test_index:
@@ -54,22 +54,22 @@ def nii_to_mask(nii_path=None, img_save_name=None, binary_TF=False):
 
 if __name__ == '__main__':
     root = os.getcwd()
-    input_dir = os.path.join(root, 'json')
+    input_dir = os.path.join(root, 'jsons')
     assert os.path.exists(input_dir), '输入文件路径不存在'
 
     # 划分数据集
     split_data(input_dir)
 
     # 由nii数据转换为mask
-    output_dir = os.path.join(root, 'json2_mask')
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-
-    # 批量转换
-    input_file = [i for i in os.listdir(input_dir) if i.endswith('nii.gz')]
-    for i in input_file:
-        nii_path = os.path.join(input_dir, i)
-        output_name = i.split('.')[0]
-        nii_to_mask(nii_path=nii_path, img_save_name=os.path.join(output_dir, output_name + '_mask.jpg'), binary_TF=False)  # mask
-        nii_to_mask(nii_path=nii_path, img_save_name=os.path.join(output_dir, output_name + '_mask_255.jpg'),
-                binary_TF=True)  # mask二值化到255
+    # output_dir = os.path.join(root, 'masks')
+    # if not os.path.exists(output_dir):
+    #     os.mkdir(output_dir)
+    #
+    # # 批量转换
+    # input_file = [i for i in os.listdir(input_dir) if i.endswith('nii.gz')]
+    # for i in input_file:
+    #     nii_path = os.path.join(input_dir, i)
+    #     output_name = i.split('.')[0]
+    #     nii_to_mask(nii_path=nii_path, img_save_name=os.path.join(output_dir, output_name + '_mask.jpg'), binary_TF=False)  # mask
+    #     nii_to_mask(nii_path=nii_path, img_save_name=os.path.join(output_dir, output_name + '_mask_255.jpg'),
+    #             binary_TF=True)  # mask二值化到255
