@@ -1,340 +1,177 @@
-import math
+import json
 import numpy as np
+from PIL import Image
 import cv2
-import torch.nn.functional as functional
-import matplotlib.pyplot as plt
+import torch
+from yanMianDataset import need_horizontal_filp
+from eva_utils.eval_metric import *
 
 
-def get_angle_k_b(point1, point2, h_img):
-    """
-    计算两个点相连的直线，对于x轴的角度 [-90, 90]
-    点的坐标系原点为左上, 需转换到左下
-    """
-    # 将point2放到在point1上方, (由于原点为左上，上方的y值要更小）
-    if point1[1] < point2[1]:
-        point1, point2 = point2, point1
+def get_ground_truth(json_dir, mask_root):
+    target = {}
+    # load json data
+    json_str = open(json_dir, 'r')
+    json_data = json.load(json_str)
+    json_str.close()
 
-    point1 = [point1[0], h_img-point1[1]]
-    point2 = [point2[0], h_img-point2[1]]
-    x_shift = point2[0] - point1[0]
-    y_shift = point2[1] - point1[1]
-    k = y_shift/x_shift
-    b = point1[1] - k*point1[0]
-    arc = math.atan(k)  # 斜率求弧度
-    angle = math.degrees(arc)   # 由弧度转换为角度
+    # get curve, landmark data
+    contours_list_curve = json_data['Models']['PolygonModel2']
+    curve = []
+    # 去除标curve时多标的点
+    for contours_list in contours_list_curve:
+        if len(contours_list['Points']) > 2:
+            curve.append(contours_list)
+    landmark = json_data['Models']['LandMarkListModel']['Points'][0]['LabelList']
+    # 将landmark转换为int，同时去除第三个维度
+    landmark = {i['Label']: np.array(i['Position'], dtype=np.int32)[:2] for i in landmark}
 
-    # 若point2 在point1 右，返回正值，（说明图片整个在左上角） ， 负值亦然
-    return angle, k, b
+    # get polygon mask
+    mask_img = Image.open(mask_root)
+    mask_array = np.array(mask_img)
+    # 将mask上的像素值转为label
+    mask = np.zeros(mask_array.shape, np.uint8)
+    mask[mask_array == 4] = 1  # 上颌骨
+    mask[mask_array == 5] = 2  # 下颌骨
 
+    # 在mask绘制曲线  3（鼻根曲线），4（前额曲线）
+    for idx in range(len(curve)):
+        points = curve[idx]['Points']
+        label = curve[idx]['Label']
+        points_array = np.array(points, dtype=np.int32)[:, :2]
+        for i in range(len(points_array) - 1):
+            cv2.line(mask, points_array[i], points_array[i + 1], color=label - 3, thickness=6)
+    target['mask'] = torch.as_tensor(mask)
+    target['landmark'] = landmark
 
-def get_angle_keypoint(line1, line2, h_img):
-    """
-    求两条直线的夹角和交点
-    h_img 用于转换坐标系，图像坐标系原点位于左上，求交点和夹角坐标系原点为左下
-    """
-    angle1,k1,b1 = get_angle_k_b(line1[0], line1[1], h_img)
-    angle2,k2,b2 = get_angle_k_b(line2[0], line2[1], h_img)
-    # 求交点
-    keypoint_x = (b2 - b1) / (k1-k2)
-    keypoint_y = k1 * keypoint_x + b1
-
-    # assert keypoint_y == k2*keypoint_x + b2
-    keypoint = [int(keypoint_x), int(h_img-keypoint_y)]
-
-    if (angle1 > 0 and angle2>0) or (angle1 < 0 and angle2 < 0):
-        return abs(angle1-angle2), keypoint
-    return abs(angle1) + abs(angle2), keypoint
-
-def get_distance(line, point, h_img):
-    """
-    求point 到直线的距离
-    h_img 用于转换坐标系，图像坐标系原点位于左上，需转换到左下进行计算
-    """
-    angle, k, b = get_angle_k_b(line[0], line[1], h_img)
-    x, y = point[0], h_img-point[1]
-    line_y = k*x + b   # 直线在x点的y值
-    shift_point = y - line_y   # point相对直线在y轴上的偏移
-    radians = math.radians(angle)  # 由角度制转为弧度制
-    distance = shift_point * math.cos(radians)
-
-    # 计算距离与直线的交点
-    shift_line = shift_point * math.sin(radians)
-    shift_x = shift_line * math.cos(radians)
-    shift_y = shift_line * math.sin(radians)
-    keypoint = [int(x+shift_x), int(h_img- line_y- shift_y)]
-
-    return distance, keypoint
+    return target
 
 
-def get_biggest_distance(mask, mask_label, line, h_img):
-    """
-    求mask中属于mask_label的所有点到line的最大距离
-    """
-    points_y, points_x = np.where(mask == mask_label)
-    big_distance = 0
-    big_point = [0,0]  # mask_label上的最大点
-    big_keypoint = [0,0]  # 直线上相对的最大点
-    for x,y in zip(points_x, points_y):
-        # 计算点（x,y）到line的距离 以及 垂点keypoint
-        disance, keypoint = get_distance(line, [x,y], h_img)
-        if keypoint[1] < min(points_y):
-            continue
-        if abs(disance) > big_distance:
-            big_distance = abs(disance)
-            big_point = [x,y]
-            big_keypoint = keypoint
-    return big_distance, big_point, big_keypoint
+def show_predict(rgb_img, prediction, classes):
+    import torch
+    img = rgb_img.copy()
+    if prediction.shape[0] == 5 or prediction.shape[0] == 11:
+        # 两个区域和两条线
+        poly_curve = torch.nn.functional.softmax(prediction[:5], dim=0)
+        poly_curve[poly_curve < 0.5] = 0  # 去除由于裁剪的重复阴影，同时避免小值出现
+        poly_curve = np.argmax(poly_curve, axis=0)
+        for j in range(1, 5):
+            mask = torch.eq(poly_curve, j)
+            img[..., 0][mask] = 200
+            img[..., 1][mask] = 100
+            img[..., 2][mask] = 200
 
-def get_closest_point(mask, mask_label, point):
-    """
-    求mask中属于mask_label 的所有点到 点point的最小距离的点
-    """
-    points_y, points_x = np.where(mask == mask_label)
-    print(len(points_x), len(points_y))
-    small_distance = math.pow(point[0]-points_x[0],2)+math.pow(point[1]-points_y[0],2)
-    small_point = [0,0]
-    for x,y in zip(points_x[1:], points_y[1:]):
-        if x==point[0] and y==point[1]:
-            continue
-        distance = math.pow(point[0]-x,2)+math.pow(point[1]-y,2)
-        if distance < small_distance:
-            small_distance = distance
-            small_point = [x,y]
-    return small_point
+    if prediction.shape[0] == 6 or prediction.shape[0] == 11:
+        # 上唇，下唇，上颌前缘中点， 下颌前缘中点，下巴，鼻根
+        for i in range(classes - 6, classes):
+            keypoint = prediction[prediction.shape[0] - 6 + i]
+            keypoint = np.array(keypoint.to('cpu'))
+            h_shifts, w_shifts = np.where(keypoint == keypoint.max())  # np返回 行，列--》对应图片为h， w
+            w_shift, h_shift = w_shifts[0], h_shifts[0] + 1
+            cv2.circle(img, [w_shift, h_shift], radius=6, color=(0, 255, 0), thickness=-1)  # 点坐标x,y应为w_shift,h_shift
+    cv2.putText(img, 'red: gt', [20,20] ,cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,0,0), thickness=1)
+    cv2.putText(img, 'green: pre', [20, 35], cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.5, color=(0,255,0), thickness=1)
+    plt.imshow(img)
+    plt.show()
 
-def get_position(head_point, line_point, right):
-    """
-    判单两个点的位置关系 --》额骨上一点和对应的直线上一点
-    输入点以左上为坐标系原点
-    head_point  额骨上点
-    line_point  直线上点
-    """
-    if right:
-        head_point, line_point = line_point, head_point
-    if head_point[0] < line_point[0]:
-        position = 'cross'
-    elif head_point[0] == line_point[0]:
-        position = 'overlap'
+
+def show_one_metric(rgb_img, gt, pre, metric: str, not_exist_landmark):
+    assert metric in ['IFA', 'MNM', 'FMA', 'PL'], "metric must in ['IFA', 'MNM', 'FMA', 'PL']"
+    landmark_gt = gt['landmark']
+    mask_gt = gt['mask']
+    landmark_pre = pre['landmark']
+    mask_pre = pre['mask']
+
+    towards_right = need_horizontal_filp(Image.fromarray(rgb_img), landmark_pre)
+    towards_right2 = need_horizontal_filp(Image.fromarray(rgb_img), landmark_gt)
+    assert towards_right == towards_right2, '定位偏差过大'
+
+    upper_lip_gt = landmark_gt[8]
+    under_lip_gt = landmark_gt[9]
+    upper_midpoint_gt = landmark_gt[10]
+    under_midpoint_gt = landmark_gt[11]
+    chin_gt = landmark_gt[12]
+    nasion_gt = landmark_gt[13]
+    upper_lip_pre = landmark_pre[8]
+    under_lip_pre = landmark_pre[9]
+    upper_midpoint_pre = landmark_pre[10]
+    under_midpoint_pre = landmark_pre[11]
+    chin_pre = landmark_pre[12]
+    nasion_pre = landmark_pre[13]
+    h_img = mask_gt.shape[0]
+
+    img = rgb_img.copy()
+    if metric == 'IFA':
+        # 面——下部角 （IFA）  --->求不好187 255 255
+        angle_IFA = calculate_IFA(img, mask_gt, 3, not_exist_landmark, nasion_gt, chin_gt, upper_lip_gt, under_lip_gt,
+                                  towards_right, color=(255, 0, 0), color_point=(255, 0, 0))
+        angle_IFA = calculate_IFA(img, mask_pre, 3, not_exist_landmark, nasion_pre, chin_pre, upper_lip_pre,
+                                  under_lip_pre, towards_right, color=(205, 205, 0), color_point=(205, 205, 0),
+                                  color_area=(187, 255, 255))
+    elif metric == 'MNM':
+        # 上颌 10 -鼻根 13 -下颌 11角（MNM角）   ----> 完成
+        angle_MNM = calculate_MNM(img, not_exist_landmark, nasion_gt, upper_midpoint_gt, under_midpoint_gt,
+                                  color=(255, 0, 0), color_point=(255, 0, 0))
+        angle_MNM = calculate_MNM(img, not_exist_landmark, nasion_pre, upper_midpoint_pre, under_midpoint_pre,
+                                  color=(205, 205, 0), color_point=(205, 205, 0))
+    elif metric == 'FMA':
+        # 面——上颌角（FMA）    -----> 基本完成
+        angle_FMA = calculate_FMA(img, mask_gt, 1, not_exist_landmark, upper_lip_gt, chin_gt, towards_right,
+                                  color=(255, 0, 0), color_point=(255, 0, 0))
+        angle_FMA = calculate_FMA(img, mask_pre, 1, not_exist_landmark, upper_lip_pre, chin_pre, towards_right,
+                                  color=(205, 205, 0), color_point=(205, 205, 0), color_area=(187, 255, 255))
     else:
-        position = 'fore'
-    return position
+        # 颜面轮廓线（FPL） & 颜面轮廓（PL）距离     -----> 完成
+        big_distance, position = calculate_PL(img, mask_gt, 4, not_exist_landmark, under_midpoint_gt, nasion_gt,
+                                              towards_right, color=(255, 0, 0), color_point=(255, 0, 0))
+        big_distance, position = calculate_PL(img, mask_pre, 4, not_exist_landmark, under_midpoint_pre, nasion_pre,
+                                              towards_right, color=(205, 205, 0), color_point=(205, 205, 0),
+                                              color_area=(187, 255, 255))
+    plt.imshow(img)
+    plt.title(metric)
+    plt.show()
 
-def remove_under_contours(contours, h_img):
-    """
-    去除轮廓中，位于最左点，和最右点连线下方的轮廓点
-    """
-    contours_list = [i[0] for i in contours]
-    left, right = min(i[0] for i in contours_list), max(i[0] for i in contours_list)
-    # 找到整条轮廓上的，最左边，最右边的点
-    for x, y in contours_list:
-        if x == left:
-            left_point = [x, y]
-        if x == right:
-            right_point = [x, y]
-    # 去除轮廓上，位于left_temp 和right_temp 连线下方的点（即为下缘轮廓）
-    _, k, b = get_angle_k_b(left_point, right_point, h_img)
-    up_contours = []
-    for x, y in contours_list:
-        if (k * x + b) < (h_img - y):
-            up_contours.append([x, y])
-    return up_contours, left_point, right_point
 
-def area_under_contours(contours, left_point, right_point, point, h_img):
-    """
-    求得在left_point 和right_point 之间的一个点point，在轮廓contours下的面积
-    面积只取轮廓之下，舍弃轮廓上
-    """
-    area = 0
-    _,k1,b1 = get_angle_k_b(left_point, point, h_img)
-    _,k2,b2 = get_angle_k_b(point, right_point, h_img)
-    for x,y in contours:
-        if x>left_point[0] and x<point[0]:
-            distance = h_img- y - (k1*x+b1)
-            if distance>0:
-                area += distance
-            else:
-                area += abs(distance)*1/3
-        elif x>point[0] and x<right_point[0]:
-            distance = h_img - y - (k2*x+b2)
-            if distance>0:
-                area += distance
-            else:
-                area += abs(distance) * 1 / 3
-    # todo 优化
-    # 轮廓上的面积取2/3试试看效果
-    return area
+def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True):
+    landmark = gt['landmark']
+    mask = gt['mask']
+    img = rgb_img.copy()
 
-def smallest_area_point(contours, left_point, right_point, h_img, towards_right):
-    """
-    求得使left_point、right_point之间的点在轮廓contours下取最小面积的点
-    """
-    smallest_point = [0,0]
-    smallest_area = 10000
-    for x,y in contours:
-        if x>left_point[0] and x<right_point[0]:
-            area = area_under_contours(contours, left_point, right_point, [x,y], h_img)
-            if area < smallest_area:
-                smallest_area = area
-                smallest_point = [x,y]
-    # 使另一个坐标点平移。
-
-    if towards_right:
-        temp_x = left_point[0]+10
-        keypoint = left_point
-    else:
-        temp_x = right_point[0]-10
-        keypoint = right_point
-    # temp_y = 10000
-    # for x,y in contours:
-    #     if (temp_x-5)<x<(temp_x+5):
-    #         if y<temp_y:
-    #             temp_y = y
-    # keypoint = [temp_x, temp_y]
-    return smallest_point, keypoint
-
-def get_nasion_vertical_line(mask, mask_label, nasion, h_img, towards_right: bool=False):
-    temp_mask = np.zeros_like(mask)
-    temp_mask[mask == mask_label] = 255
-    # 闭运算处理缺陷，腐蚀使曲线变细，更好处理
-    kernel = np.ones((3, 3), dtype=np.uint8)
-    temp_mask = temp_mask.astype(np.uint8)
-    temp_mask = cv2.morphologyEx(temp_mask, cv2.MORPH_CLOSE, kernel, iterations=2)  # 闭运算处理缺陷
-    temp_mask = cv2.erode(temp_mask, kernel, iterations=2)  # 腐蚀两次减小大小
-    shift_h, shift_w = np.where(temp_mask == 255)
-
-    # 方案1
-    # 拟合曲线后求导，效果不佳
-    # zz = np.polyfit(shift_w, shift_h, 3)   # 使用三阶多项式拟合
-    # pp = np.poly1d(zz)   #  转换为多项式
-    #
-    # # 求导
-    # error = 0.5
-    # keypoint_IFA = [0, 0]
-    # k_IFA = 1
-    # for x, y in zip(shift_w, shift_h):
-    #     epsilon = 1e-10
-    #     daoshu = (pp(x + epsilon) - pp(x)) / epsilon
-    #     _, k_temp_IFA, _ = get_angle_k_b([x, y], nasion, h_img)
-    #     if abs(k_temp_IFA - daoshu) < error:
-    #         keypoint_IFA = [x, y]
-    #         k_IFA = k_temp_IFA
-    # tttt = [keypoint_IFA[0] - 50, int(keypoint_IFA[1] + k_IFA * 50)]
-    # cv2.line(rgb_img, tttt, nasion, color=(255, 0, 0), thickness=2)
+    towards_right = need_horizontal_filp(Image.fromarray(img), landmark)  # 标签是否其中在图像右侧
+    for j in range(1, 5):
+        mask_ = np.equal(mask, j)
+        img[..., 0][mask_] = 200
+        img[..., 1][mask_] = 100
+        img[..., 2][mask_] = 200
+    for i in range(8, 14):
+        cv2.circle(img, landmark[i], radius=5, color=(0, 255, 0), thickness=-1)
     # plt.imshow(rgb_img)
     # plt.show()
 
-    # # 方案2，取nasion左右各 5 个像素的所有值平均
-    # left_IFA, right_IFA = nasion[0]-3, nasion[0]+3
-    # y_left = []
-    # y_right = []
-    # for x,y in zip(shift_w, shift_h):
-    #     if x>=(nasion[0]-5) and x<nasion[0]:
-    #         y_left.append(y)
-    #     elif x>nasion[0] and x<=(nasion[0]+5):
-    #         y_right.append(y)
-    #
-    # if towards_right:
-    #     if 3 < (len(y_left) - len(y_right)) < 5:
-    #         y_left = []
-    #         for x,y in zip(shift_w, shift_h):
-    #             if x >= (nasion[0] - 4) and x < nasion[0]:
-    #                 y_left.append(y)
-    #     elif (len(y_left) - len(y_right)) >= 5:
-    #         y_left = []
-    #         for x, y in zip(shift_w, shift_h):
-    #             if x >= (nasion[0] - 3) and x < nasion[0]:
-    #                 y_left.append(y)
-    # elif not towards_right:
-    #     if 3<(len(y_right)-len(y_left))<5:
-    #         y_right = []
-    #         for x,y in zip(shift_w, shift_h):
-    #             if x>nasion[0] and x<=(nasion[0]+4):
-    #                 y_right.append(y)
-    #     elif (len(y_right)-len(y_left))>=5:
-    #         y_right = []
-    #         for x,y in zip(shift_w, shift_h):
-    #             if x>nasion[0] and x<=(nasion[0]+4):
-    #                 y_right.append(y)
-    #
-    # left_IFA_y = sum(y_left)/len(y_left)
-    # right_IFA_y = sum(y_right)/len(y_right)
-    # _,k,_ = get_angle_k_b([left_IFA, left_IFA_y],[right_IFA,right_IFA_y],h_img)
-    # point1 = [left_IFA-20, int(k*20+left_IFA_y)]
-    # point2 = [right_IFA+20, int(-k*20+right_IFA_y)]
-    #
-    # keypoint = [nasion[0]+10, int(nasion[1] + 1/k*10)]
-    # return -1/k, point1, point2, keypoint
+    upper_lip = landmark[8]
+    under_lip = landmark[9]
+    upper_midpoint = landmark[10]
+    under_midpoint = landmark[11]
+    chin = landmark[12]
+    nasion = landmark[13]
+    h_img = mask.shape[0]
 
-    # 方案3
-    index = shift_w<nasion[0] if towards_right else shift_w>nasion[0]
-    shift_h = shift_h[index]
-    shift_w = shift_w[index]
-    mean_point = [int(np.mean(shift_w)), int(np.mean(shift_h))]
-    _,k,_ = get_angle_k_b(mean_point, nasion, h_img)
-    point1 = [nasion[0]-20, int(k*20+nasion[1])]
-    point2 = [nasion[0]+20, int(-k*20+nasion[1])]
+    # 面——下部角 （IFA）  --->求不好
+    angle_IFA = calculate_IFA(img, mask, 3, not_exist_landmark, nasion, chin, upper_lip, under_lip, towards_right,
+                              color=(173, 255, 47))
+    # 上颌 10 -鼻根 13 -下颌 11角（MNM角）   ----> 完成
 
-    keypoint = [nasion[0]+10, int(nasion[1] + 1/k*10)]
-    return -1/k, point1, point2, keypoint
+    angle_MNM = calculate_MNM(img, not_exist_landmark, nasion, upper_midpoint, under_midpoint, color=(255, 215, 0))
 
+    # 面——上颌角（FMA）    -----> 基本完成
+    angle_FMA = calculate_FMA(img, mask, 1, not_exist_landmark, upper_lip, chin, towards_right, color=(255, 106, 106))
 
-def get_contours(mask, mask_label, h_img):
-    binary = np.zeros_like(mask)
-    binary[mask == mask_label] = 255  # 边缘检测需要二值图像
-    # cv2.CHAIN_APPROX_NONE   cv2.CHAIN_APPROX_SIMPLE
-    binary = binary.astype(np.uint8)
-    # binary = cv2.threshold(binary, 1,255, cv2.THRESH_BINARY)
-    contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-       # 检测的轮廓中有很多，提取最长的轮廓，为上颌骨轮廓
-    temp = contours[0]
-    for i in contours[1:]:
-        if len(i) > len(temp):
-            temp = i
-    contours = temp
-    # 处理掉下缘轮廓
-    up_contours, left_point, right_point = remove_under_contours(contours, h_img)
-    return contours, up_contours, left_point, right_point
+    # 颜面轮廓线（FPL） & 颜面轮廓（PL）距离     -----> 完成
+    big_distance, position = calculate_PL(img, mask, 4, not_exist_landmark, under_midpoint, nasion, towards_right,
+                                          color=(0, 191, 255))
 
-def create_target(prediction, json_dir):
-    poly_curve = functional.softmax(prediction[:5], dim=0)
-    poly_curve[poly_curve < 0.5] = 0   # 去除由于裁剪的重复阴影，同时避免小值出现
-    poly_curve = np.argmax(poly_curve, axis=0)
-    # poly_curve 其实已经可以作为mask,下面对它进行闭运算,腐蚀等处理
-    not_exist_landmark = []   # 统计预测不存在的点
-
-    mask = np.zeros(prediction.shape[-2:], dtype=np.uint8)
-    kernel = np.ones((5, 5), dtype=np.uint8)  # 对每个区域做闭运算，去除缺陷
-    for i in range(1, 5):
-        temp = np.zeros_like(mask)
-        temp[poly_curve == i] = 255
-        temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
-        # temp = cv2.morphologyEx(temp, cv2.MORPH_OPEN, kernel, iterations=5)
-        mask[temp == 255] = i
-
-    # plt.imshow(mask, cmap='gray')
-    # plt.show()
-
-    kernel = np.ones((3, 3), dtype=np.uint8)
-    landmark = {}
-    for i in range(5, 11):
-        temp = np.array(prediction[i])
-        # 先判断不进行操作时,是否存在预测的点,若有,则保存
-        y, x = np.where(temp == temp.max())
-        if len(x) == 0:
-            not_exist_landmark.append(i)
-        else:
-            landmark[i + 3] = [int(np.mean(x[0])), int(np.mean(y[0]))]
-            if len(x) > 1:
-                print(json_dir)
-            # 一直对mask进行腐蚀,得到最精确的定位点
-            # temp = cv2.erode(temp, kernel, iterations=1)
-            # while temp.max()>0:
-            #     y, x = np.where(temp == temp.max())
-            #     landmark[i + 3] = [int(np.mean(x[0])), int(np.mean(y[0]))]
-            #     temp = cv2.erode(temp, kernel, iterations=1)
-
-    target = {'mask': mask, 'landmark': landmark}
-    if len(not_exist_landmark) > 0:
-        not_exist_landmark.append(json_dir)
-    return target, not_exist_landmark
-
+    data = {'angle_IFA': angle_IFA, 'angle_MNM': angle_MNM, 'angle_FMA': angle_FMA, 'distance': big_distance,
+            'position': position}
+    plt.title('gt' if is_gt else 'pre')
+    plt.imshow(img)
+    plt.show()
+    return data
