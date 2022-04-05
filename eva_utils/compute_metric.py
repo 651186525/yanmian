@@ -310,7 +310,7 @@ def get_contours(mask, mask_label, h_img):
     up_contours, left_point, right_point = remove_under_contours(contours, h_img)
     return contours, up_contours, left_point, right_point
 
-def create_target(img, prediction, json_dir):
+def create_predict_target(img, prediction, json_dir):
     poly_curve = functional.softmax(prediction[:5], dim=0)
     poly_curve[poly_curve < 0.5] = 0   # 去除由于裁剪的重复阴影，同时避免小值出现
     poly_curve = np.argmax(poly_curve, axis=0)
