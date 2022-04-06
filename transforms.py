@@ -23,8 +23,8 @@ def pad_if_smaller(img, size, fill=0):
         img = F.pad(img, (0, 0, padw, padh), fill=fill)
     return img
 
-
 class Compose(object):
+    """组合多个transform函数"""
     def __init__(self, transforms):
         self.transforms = transforms
 
@@ -99,7 +99,7 @@ class CenterCrop(object):
 class ToTensor(object):
     def __call__(self, image, target):
         image = F.to_tensor(image)
-        target = torch.as_tensor(np.array(target), dtype=torch.int64)
+        # target = torch.as_tensor(np.array(target), dtype=torch.int64)
         return image, target
 
 

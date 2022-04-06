@@ -83,51 +83,48 @@ class YanMianDataset(Dataset):
                 points_array = np.array(points, dtype=np.int32)[:, :2]
                 for j in range(len(points_array) - 1):
                     cv2.line(poly_curve, points_array[j], points_array[j + 1], color=label-3, thickness=6)
-        poly_curve = torch.as_tensor(poly_curve)
+        mask = torch.as_tensor(poly_curve)
         # 得到标注的ROI区域图像
-        img, poly_curve, landmark = GetROI(border_size=30)(img, poly_curve, landmark)
-        mask = to_pil_image(poly_curve)
 
-        # # 生成heatmap mask
-        # mask = torch.zeros(6, *poly_curve.shape, dtype=torch.float)
-        # # 根据landmark 绘制高斯热图 （进行点分割）
-        # # heatmap 维度为 c,h,w 因为ToTensor会将Image(c.w,h)也变为(c,h,w)
-        # for label in landmark:
-        #     point = landmark[label]
-        #     temp_heatmap = make_2d_heatmap(point, poly_curve.shape, max_value=200, var=100)
-        #     mask[label-8] = temp_heatmap
+        img_w, img_h = img.size
+        border_size = 30
+        y,x = np.where(mask!=0)
+        # 将landmark的值加入
+        x,y = x.tolist(), y.tolist()
+        x.extend([i[0] for i in landmark.values()])
+        y.extend([i[1] for i in landmark.values()])
+        left, right = min(x)-border_size, max(x)+border_size
+        top, bottom = min(y)-border_size, max(y)+border_size
+        boxes = [[left, top, right, bottom]]
+        # 转换为Tensor
+        # or_boxes = torch.as_tensor(or_boxes)
+        boxes = torch.as_tensor(boxes, dtype=torch.float32)
+        labels = torch.as_tensor([1], dtype=torch.int64)
+        iscrowd = torch.as_tensor([0], dtype=torch.int64)
+        image_id = torch.tensor([index])
+        # names = torch.as_tensor(names)
+        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
 
-        # 将位于右上角的图片翻转到左上角
-        # if need_horizontal_filp(img, landmark):
-        #     img = hflip(img)
-        #     mask = hflip(mask)
-        #     landmark = {i:[width-j[0],j[1]] for i,j in landmark.items()}   # 将landmark也翻转
 
-        # resize image
-        if self.resize is not None:
-            img, mask, landmark = Resize(self.resize)(img, mask, landmark)
-        # todo
-        # 似乎resize后生成了其它轮廓边缘
+        target = {}
+        # target['or_boxes'] = or_boxes
+        target["boxes"] = boxes
+        target["labels"] = labels
+        target["image_id"] = image_id
+        target['iscrowd'] = iscrowd
+        # target['names'] = names
+        target["area"] = area
 
         # Image，和tensor通道组织方式不一样，但是还可以使用同一个transform是因为它内部根据类型做了处理
         if self.transforms is not None:
-            img, mask = self.transforms(img, mask)
-
-        # 生成target
-        target['mask'] = mask
-        target['landmark'] = landmark
+            img, target = self.transforms(img, target)
 
         return img, target
 
 
     @staticmethod
-    def collate_fn(batch):  # 如何取样本，实现自定义的batch输出
-        images, targets = list(zip(*batch))  # batch里每个元素表示一张图片和一个gt
-        batched_imgs = cat_list(images, fill_value=0)  # 统一batch的图片大小
-        mask = [i['mask'] for i in targets]
-        batched_targets = {'landmark':[i['landmark'] for i in targets]}
-        batched_targets['mask'] = cat_list(mask, fill_value=255)
-        return batched_imgs, batched_targets
+    def collate_fn(batch):
+        return tuple(zip(*batch))
 
 
 def cat_list(images, fill_value=0):
