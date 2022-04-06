@@ -213,8 +213,6 @@ def get_nasion_vertical_line(mask, mask_label, nasion, h_img, towards_right: boo
     # temp_mask = cv2.morphologyEx(temp_mask, cv2.MORPH_CLOSE, kernel, iterations=2)  # 闭运算处理缺陷
     # temp_mask = cv2.erode(temp_mask, kernel, iterations=2)  # 腐蚀两次减小大小
     shift_h, shift_w = np.where(temp_mask == 255)
-    if len(shift_w) == 0:  # 没有预测到
-        return None, None, None, None
     # 方案1
     # 拟合曲线后求导，效果不佳
     # zz = np.polyfit(shift_w, shift_h, 3)   # 使用三阶多项式拟合
@@ -363,7 +361,16 @@ def create_predict_target(img, prediction, json_dir):
                 temp = np.zeros_like(mask)
                 temp[poly_curve == i] = 255
                 temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
-
+            # 判断处理后，斜率是否为0，即为不正确预测
+            shift_h, shift_w = np.where(temp==255)
+            index = shift_w < nasion[0] if towards_right else shift_w > nasion[0]
+            if any(index):
+                shift_h = shift_h[index]
+                shift_w = shift_w[index]
+            mean_point = [int(np.mean(shift_w)), int(np.mean(shift_h))]
+            _, k, _ = get_angle_k_b(mean_point, nasion, img.size[1])
+            if k==0:
+                not_exist_landmark.append(i)  # 检查数据
         if i==4:
             # 去除真实额骨上方的所有最小点，避免误判
             while 1:
@@ -374,6 +381,11 @@ def create_predict_target(img, prediction, json_dir):
                         temp[n,m] = 0
                     y,x = np.where(temp==255)
                 else:
+                    break
+                if len(x)==0:  # 此处说明处理后，额骨区域全部为0了，即预测的全部区域都为小区域，所以回到未处理的状态
+                    temp = np.zeros_like(mask)
+                    temp[poly_curve == i] = 255
+                    y, x = np.where(temp == 255)
                     break
             top_x = x[np.argwhere(y==y.min())]
             if towards_right:

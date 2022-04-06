@@ -3,13 +3,13 @@ import time
 import json
 import torch
 from torchvision import transforms
-from transforms import MyCrop
+from transforms import MyCrop,Resize, GetROI
 from PIL import Image
 import numpy as np
 from eva_utils.my_eval import *
 import matplotlib.pyplot as plt
 from src import UNet
-from transforms import GetROI
+from train_utils.dice_coefficient_loss import build_target, multiclass_dice_coeff
 
 def time_synchronized():
     torch.cuda.synchronize() if torch.cuda.is_available() else None
@@ -32,7 +32,7 @@ def main():
              12: 'chin', 13: 'nasion'}
 
     # get devices
-    device = torch.device("cuda:6" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("using {} device.".format(device))
 
     # create model
@@ -49,9 +49,9 @@ def main():
     # 进入验证模式
     model.eval()
 
-    model2 = False
+    model2 = True
     if model2:
-        weights_poly_curve = './model/poly_curve/1mask_with_cross_entropy/model_149.pth'
+        weights_poly_curve = './model/poly_curve/ROI30_no_weight_entropy_0.6857/best_model.pth'
         model_poly_curve = UNet(in_channels=3, num_classes=5, base_c=32)
         model_poly_curve.load_state_dict(torch.load(weights_poly_curve, map_location='cpu')['model'])
         model_poly_curve.to(device)
@@ -77,8 +77,9 @@ def main():
             ground_truth = get_ground_truth(json_dir, mask_dir)
             if get_roi:
                 ROI_img, poly_curve, landmark = GetROI(border_size=30)(original_img, ground_truth['mask'], ground_truth['landmark'])
-                ground_truth = {'mask':poly_curve, 'landmark':landmark}
-
+                poly_curve = transforms.ToPILImage()(poly_curve)
+                ROI_img, poly_curve, landmark = Resize([320, 320])(ROI_img, poly_curve, landmark)
+                ground_truth = {'mask':np.array(poly_curve), 'landmark':landmark}
             img_w, img_h = ROI_img.size
             
             input_img = ROI_img
@@ -91,8 +92,8 @@ def main():
             prediction = output['out'].squeeze().to('cpu')
             # 显示预测结果
             img = np.array(ROI_img)
-            for point in ground_truth['landmark'].values():
-                cv2.circle(img, point, 6, (255,0,0), -1)
+            # for point in ground_truth['landmark'].values():
+            #     cv2.circle(img, point, 6, (255,0,0), -1)
             # show_predict(img, prediction, classes + 1)
             # 计算预测数据的landmark 的 mse误差
             for i, data in enumerate(prediction[prediction.shape[0] - 6:]):
@@ -104,13 +105,17 @@ def main():
             # model2 预测poly_curve
             if model2:
                 output2 = model_poly_curve(input_img.to(device))
-                prediction2 = output2['out'].squeeze().to('cpu')
-                prediction = torch.cat((prediction2, prediction), dim=0)
+                prediction2 = output2['out'].to('cpu')
+                gt_mask = torch.as_tensor(ground_truth['mask'], dtype=torch.int64).unsqueeze(0)  # unsqueeze统一格式
+                dice_target = build_target(gt_mask, 5)
+                dice = multiclass_dice_coeff(torch.nn.functional.softmax(prediction2, dim=1), dice_target)
+                print(f'dice:{dice:.3f}')
+                prediction = torch.cat((prediction2.squeeze(), prediction), dim=0)
 
                 # 生成预测数据的统一格式的target{'landmark':landmark,'mask':mask}
-                pre_target, not_exist_landmark = create_predict_target(original_img, prediction, '')
-                plt.imshow(pre_target['mask'],cmap='gray')
-                plt.show()
+                pre_target, not_exist_landmark = create_predict_target(ROI_img, prediction, '')
+                # plt.imshow(pre_target['mask'],cmap='gray')
+                # plt.show()
 
                 # 分指标展示
                 # for metric in ['IFA', 'MNM', 'FMA', 'PL']:
@@ -128,13 +133,13 @@ def main():
     # 评估 mse误差   var100_mse_Rightcrop最佳
     for i in range(8, 14):
         print(f'{i} :{sum(mse[i]) / len(json_list):.3f}  std: {np.std(mse[i])}')
-    # ROI 30
-    # 8 :13.414  std: 26.76464003477134
-    # 9 :11.337  std: 23.53760775669367
-    # 10 :7.902  std: 5.412339243558436
-    # 11 :8.779  std: 7.94814373512697
-    # 12 :7.540  std: 9.274394684944388
-    # 13 :5.496  std: 3.0807410802573796
+    # var100ROI30 （var50不好,150也不好
+    # 8 :7.565  std: 11.792678845505725
+    # 9 :5.256  std: 6.386437015054179
+    # 10 :6.322  std: 3.4446265923261605
+    # 11 :5.605  std: 3.0213342618582524
+    # 12 :4.937  std: 5.2445772824275005
+    # 13 :4.430  std: 2.534100979792614
 
     # 评估颜面误差
     if model2:

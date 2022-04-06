@@ -54,7 +54,7 @@ def multiclass_dice_coeff(x: torch.Tensor, target: torch.Tensor, ignore_index: i
 
 def dice_loss(x: torch.Tensor, target: torch.Tensor, multiclass: bool = False, ignore_index: int = -100):
     # Dice loss (objective to minimize) between 0 and 1
-    x = nn.functional.softmax(x, dim=1)  # dim=1为通道维度------>得到每张特征图预测当前值的概率
+    x = nn.functional.softmax(x, dim=1)  # dim=1为通道维度------>得到每张特征图预测当前值的概率  N*C*H*W
     # multiclass代表针对每个类别（即通道）计算dice，（其本质还是一个个类别计算后求平均值）
     fn = multiclass_dice_coeff if multiclass else dice_coeff
     # dice衡量两个集合的相似度，要使dice接近1，则loss定义为1-dice

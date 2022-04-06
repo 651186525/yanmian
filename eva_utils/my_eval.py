@@ -144,7 +144,7 @@ def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True):
         img[..., 2][mask_] = 200
     for i in range(8, 14):
         cv2.circle(img, landmark[i], radius=5, color=(0, 255, 0), thickness=-1)
-    # plt.imshow(rgb_img)
+    # plt.imshow(img)
     # plt.show()
 
     upper_lip = landmark[8]
@@ -172,6 +172,6 @@ def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True):
     data = {'angle_IFA': angle_IFA, 'angle_MNM': angle_MNM, 'angle_FMA': angle_FMA, 'distance': big_distance,
             'position': position}
     plt.title('gt' if is_gt else 'pre')
-    plt.imshow(img)
-    plt.show()
+    # plt.imshow(img)
+    # plt.show()
     return data

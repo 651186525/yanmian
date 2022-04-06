@@ -99,7 +99,7 @@ class CenterCrop(object):
 class ToTensor(object):
     def __call__(self, image, target):
         image = F.to_tensor(image)
-        # target = torch.as_tensor(np.array(target), dtype=torch.int64)
+        target = torch.as_tensor(np.array(target), dtype=torch.int64)
         return image, target
 
 
@@ -198,4 +198,20 @@ class GetROI(object):
         img = F.crop(img, top, left, height, width)
         mask = F.crop(mask, top, left, height, width)
         landmark = {i:[j[0]-left, j[1]-top] for i,j in landmark.items()}
+        return img, mask, landmark
+
+class Resize(object):
+    def __init__(self, size):
+        self.size = size
+
+    def __call__(self, img, mask, landmark):
+        width, height = img.size
+        h, w = self.size
+        # 先满足w
+        ratio = w / width
+        if height * ratio > h:
+            ratio = h / height
+        img = F.resize(img, [int(height * ratio), int(width * ratio)])
+        mask = F.resize(mask, [int(height * ratio), int(width * ratio)])
+        landmark = {i: [int(j[0] * ratio), int(j[1] * ratio)] for i, j in landmark.items()}
         return img, mask, landmark
