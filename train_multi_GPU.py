@@ -118,10 +118,10 @@ def main(args):
 
     params_to_optimize = [p for p in model_without_ddp.parameters() if p.requires_grad]
 
-    optimizer = torch.optim.SGD(
-        params_to_optimize,
-        lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    # optimizer = torch.optim.Adam(params_to_optimize, lr=args.lr)   # lr = 2e-4
+    # optimizer = torch.optim.SGD(
+    #     params_to_optimize,
+    #     lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam(params_to_optimize, lr=args.lr, weight_decay=args.weight_decay)   # lr = 2e-4
 
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
 
@@ -159,7 +159,7 @@ def main(args):
 
         mse, dice = evaluate(model, val_data_loader, device=device, num_classes=num_classes)
         # print(f'mse: {mse:.3f}')
-        # print(f"dice coefficient: {dice:.3f}")
+        print(f"dice coefficient: {dice:.3f}")
 
         # 只在主进程上进行写操作
         if args.rank in [-1, 0]:
@@ -169,21 +169,21 @@ def main(args):
                 train_info = f"[epoch: {epoch}]\n" \
                              f"train_loss: {mean_loss:.4f}\n" \
                              f"lr: {lr:.6f}\n" \
-                             f"mse:{[round(mse['mse_classes'][i], 3) for i in range(8, 14)]}\n"
-                             # f"dice coefficient: {dice:.3f}\n" \
-
+                             f"dice coefficient: {dice:.3f}\n" \
+                             # f"mse:{[round(mse['mse_classes'][i], 3) for i in range(8, 14)]}\n"
 
                 f.write(train_info + "\n\n")
 
         if args.save_best is True:
-            m_mse = 0
-            for i in mse['mse_classes'].values():
-                m_mse += i
-            m_mse = m_mse/len(mse['mse_classes'])
-            if m_mse < best_mse:
-                best_mse = m_mse
-            # if best_dice < dice:
-            #     best_dice = dice
+            # m_mse = 0
+            # for i in mse['mse_classes'].values():
+
+            #     m_mse += i
+            # m_mse = m_mse/len(mse['mse_classes'])
+            # if m_mse < best_mse:
+            #     best_mse = m_mse
+            if best_dice < dice:
+                best_dice = dice
             else:
                 continue
 
@@ -207,7 +207,8 @@ def main(args):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
-    print('best_mse:',best_mse)
+    # print('best_mse:',best_mse)
+    print('best_dice:', best_dice)
 
 if __name__ == "__main__":
     import argparse
@@ -220,9 +221,9 @@ if __name__ == "__main__":
     # 训练设备类型
     parser.add_argument('--device', default='cuda', help='device')
     # 检测目标类别数(不包含背景)
-    parser.add_argument('--num-classes', default=5, type=int, help='num_classes')
-    # 每块GPU上的batch_size
-    parser.add_argument('-b', '--batch-size', default=8, type=int,
+    parser.add_argument('--num-classes', default=4, type=int, help='num_classes')
+    # 每块GPU上的batch_sizes
+    parser.add_argument('-b', '--batch-size', default=16, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
@@ -249,7 +250,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/heatmap/var100_ROI30', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/poly_curve/with_test', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     # 不训练，仅测试
