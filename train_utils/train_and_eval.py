@@ -12,7 +12,7 @@ def criterion(inputs, target, num_classes: int = 2, dice: bool = True, mse:bool 
 
     for name, x in inputs.items():
         # 忽略target中值为255的像素，255的像素是目标边缘或者padding填充
-        loss = 0
+        # loss = 0
         # 交叉熵损失：在通道方向softmax后，根据x的值计算
         if num_classes == 2:
             # 设置cross_entropy中背景和前景的loss权重(根据自己的数据集进行设置)
@@ -26,7 +26,7 @@ def criterion(inputs, target, num_classes: int = 2, dice: bool = True, mse:bool 
             loss_weight = torch.as_tensor(loss_weight, device=target.device)
         else:
             loss_weight = None
-        # loss = nn.functional.cross_entropy(x, target, ignore_index=ignore_index, weight=loss_weight)  # 函数式API
+        loss = nn.functional.cross_entropy(x, target, ignore_index=ignore_index, weight=loss_weight)  # 函数式API
         if dice is True:
             # 针对每个类别，背景，前景都需要计算他的dice系数
             # 根据gt构建每个类别的矩阵
@@ -65,21 +65,22 @@ def evaluate(model, data_loader, device, num_classes):
             output = output['out']
             landmark = target['landmark'][0]
 
-            # dice_target = build_target(mask, 5)
-            # dice += multiclass_dice_coeff(output, dice_target)
+            dice_target = build_target(mask, 5)
+            output = nn.functional.softmax(output, dim=1)
+            dice += multiclass_dice_coeff(output, dice_target)
 
             # 计算mse
-            for i, data in  enumerate(output[0]):
-                data = data.to('cpu').detach()
-                y,x = np.where(data==data.max())
-                point = landmark[i+8]  # label=i+8
-                mse[i+8].append(math.sqrt(math.pow(x[0]-point[0],2)+math.pow(y[0]-point[1],2)))
+            # for i, data in  enumerate(output[0]):
+            #     data = data.to('cpu').detach()
+            #     y,x = np.where(data==data.max())
+            #     point = landmark[i+8]  # label=i+8
+            #     mse[i+8].append(math.sqrt(math.pow(x[0]-point[0],2)+math.pow(y[0]-point[1],2)))
 
-    mse2 = {}
-    for i in range(8,14):
-        mse2[i] = sum(mse[i])/len(data_loader)
-        print(f'{i} :{sum(mse[i])/len(data_loader):.3f}')
-    return {'mse_total':mse, 'mse_classes':mse2}, dice/len(data_loader)
+    # mse2 = {}
+    # for i in range(8,14):
+    #     mse2[i] = sum(mse[i])/len(data_loader)
+    #     print(f'{i} :{sum(mse[i])/len(data_loader):.3f}')
+    return {'mse_total':mse, 'mse_classes':mse}, dice/len(data_loader)
 
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch, num_classes,
@@ -98,7 +99,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, num_classes,
         with torch.cuda.amp.autocast(enabled=scaler is not None):
             output = model(image)
             # 计算损失
-            loss = criterion(output, mask, dice=False, mse=True, num_classes=num_classes, ignore_index=255)
+            loss = criterion(output, mask, dice=True, mse=False, num_classes=num_classes, ignore_index=255)
 
         optimizer.zero_grad()
         if scaler is not None:

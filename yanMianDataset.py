@@ -6,8 +6,8 @@ from data.init_data import check_data
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-from torchvision.transforms.functional import hflip, resize
-from transforms import GetROI
+from torchvision.transforms.functional import hflip, to_pil_image
+from transforms import GetROI, Resize
 import matplotlib.pyplot as plt
 
 
@@ -83,19 +83,19 @@ class YanMianDataset(Dataset):
                 points_array = np.array(points, dtype=np.int32)[:, :2]
                 for j in range(len(points_array) - 1):
                     cv2.line(poly_curve, points_array[j], points_array[j + 1], color=label-3, thickness=6)
-        # poly_curve = Image.fromarray(poly_curve)
         poly_curve = torch.as_tensor(poly_curve)
         # 得到标注的ROI区域图像
         img, poly_curve, landmark = GetROI(border_size=30)(img, poly_curve, landmark)
+        mask = to_pil_image(poly_curve)
 
-        # 生成mask
-        mask = torch.zeros(6, *poly_curve.shape, dtype=torch.float)
-        # 根据landmark 绘制高斯热图 （进行点分割）
-        # heatmap 维度为 c,h,w 因为ToTensor会将Image(c.w,h)也变为(c,h,w)
-        for label in landmark:
-            point = landmark[label]
-            temp_heatmap = make_2d_heatmap(point, poly_curve.shape, max_value=200, var=100)
-            mask[label-8] = temp_heatmap
+        # # 生成heatmap mask
+        # mask = torch.zeros(6, *poly_curve.shape, dtype=torch.float)
+        # # 根据landmark 绘制高斯热图 （进行点分割）
+        # # heatmap 维度为 c,h,w 因为ToTensor会将Image(c.w,h)也变为(c,h,w)
+        # for label in landmark:
+        #     point = landmark[label]
+        #     temp_heatmap = make_2d_heatmap(point, poly_curve.shape, max_value=200, var=100)
+        #     mask[label-8] = temp_heatmap
 
         # 将位于右上角的图片翻转到左上角
         # if need_horizontal_filp(img, landmark):
@@ -105,15 +105,9 @@ class YanMianDataset(Dataset):
 
         # resize image
         if self.resize is not None:
-            width,height = img.size
-            h, w = self.resize
-            # 先满足w
-            ratio = w/width
-            if height*ratio > h:
-                ratio = h/height
-            img = resize(img, [int(height*ratio), int(width*ratio)])
-            mask = resize(mask, [int(height*ratio), int(width*ratio)])
-            landmark = {i:[int(j[0]*ratio), int(j[1]*ratio)] for i,j in landmark.items()}
+            img, mask, landmark = Resize(self.resize)(img, mask, landmark)
+        # todo
+        # 似乎resize后生成了其它轮廓边缘
 
         # Image，和tensor通道组织方式不一样，但是还可以使用同一个transform是因为它内部根据类型做了处理
         if self.transforms is not None:
@@ -177,7 +171,7 @@ def need_horizontal_filp(img, landmarks):
     num = 0
     # 统计landmark中有多少个点位于图像右上角
     for i in landmarks:
-        if int(landmarks[i][0]) > w_center and int(landmarks[i][1]) < h_center:
+        if int(landmarks[i][0]) > w_center:
             num += 1
 
     if num >= 1/2 * len(landmarks):
@@ -188,7 +182,6 @@ def need_horizontal_filp(img, landmarks):
 # d = os.getcwd()
 # mydata = YanMianDataset(d, data_type='test', resize=[320,320])  # , transforms=RightCrop(2/3),resize=[256,384]
 # # a,b = mydata[0]
-# # c =1
 # for i in range(len(mydata)):
 #     a,b = mydata[i]
 #     print(i)

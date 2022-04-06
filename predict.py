@@ -51,7 +51,7 @@ def main():
 
     model2 = True
     if model2:
-        weights_poly_curve = './model/poly_curve/ROI30_no_weight_entropy_0.6857/best_model.pth'
+        weights_poly_curve = './model/poly_curve/ROI30_no_entropy_best/best_model.pth'
         model_poly_curve = UNet(in_channels=3, num_classes=5, base_c=32)
         model_poly_curve.load_state_dict(torch.load(weights_poly_curve, map_location='cpu')['model'])
         model_poly_curve.to(device)
@@ -61,6 +61,7 @@ def main():
         result_pre = {'angle_IFA':[],'angle_MNM': [], 'angle_FMA': [], 'distance': [], 'position': []}
         result_gt = {'angle_IFA':[],'angle_MNM': [], 'angle_FMA': [], 'distance': [], 'position': []}
         mse = {i: [] for i in range(8, 14)}
+        dices = []
         get_roi = True
 
         # 生成预测图
@@ -109,11 +110,12 @@ def main():
                 gt_mask = torch.as_tensor(ground_truth['mask'], dtype=torch.int64).unsqueeze(0)  # unsqueeze统一格式
                 dice_target = build_target(gt_mask, 5)
                 dice = multiclass_dice_coeff(torch.nn.functional.softmax(prediction2, dim=1), dice_target)
+                dices.append(dice)
                 print(f'dice:{dice:.3f}')
                 prediction = torch.cat((prediction2.squeeze(), prediction), dim=0)
 
                 # 生成预测数据的统一格式的target{'landmark':landmark,'mask':mask}
-                pre_target, not_exist_landmark = create_predict_target(ROI_img, prediction, '')
+                pre_target, not_exist_landmark = create_predict_target(ROI_img, prediction, json_dir)
                 # plt.imshow(pre_target['mask'],cmap='gray')
                 # plt.show()
 
@@ -141,6 +143,11 @@ def main():
     # 12 :4.937  std: 5.2445772824275005
     # 13 :4.430  std: 2.534100979792614
 
+    # dice 误差
+    print('avg_dice:', np.mean(dices))
+    # 1        1`       2        3
+    # 0.631    0.636    0.675    0.685
+
     # 评估颜面误差
     if model2:
         for i in ['angle_IFA','angle_MNM', 'angle_FMA', 'distance']:
@@ -167,9 +174,9 @@ def main():
             print('error:', np.mean(error))
             print('error标准差:', np.std(error))
         print('position')
-        print('not',result_gt['position'].count('not'))
-        print('cross',result_gt['position'].count('cross'))
-        print('fore',result_gt['position'].count('fore'))
+        print('not  gt:',result_gt['position'].count('not'), '    pre: ', result_pre['position'].count('not'))
+        print('cross  gt:',result_gt['position'].count('cross'), '    pre: ', result_pre['position'].count('cross'))
+        print('fore  gt:',result_gt['position'].count('fore'), '    pre: ', result_pre['position'].count('fore'))
 
 
 if __name__ == '__main__':
