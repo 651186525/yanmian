@@ -50,15 +50,19 @@ class RandomResize(object):
         target = F.resize(target, size, interpolation=T.InterpolationMode.NEAREST)
         return image, target
 
-
 class RandomHorizontalFlip(object):
+    """随机水平翻转图像以及bboxes"""
     def __init__(self, flip_prob):
         self.flip_prob = flip_prob
 
     def __call__(self, image, target):
         if random.random() < self.flip_prob:
-            image = F.hflip(image)
-            target = F.hflip(target)
+            height, width = image.shape[-2:]
+            image = image.flip(-1)  # 水平翻转图片
+            bbox = target["boxes"]
+            # bbox: xmin, ymin, xmax, ymax
+            bbox[:, [0, 2]] = width - bbox[:, [2, 0]]  # 翻转对应bbox坐标信息
+            target["boxes"] = bbox
         return image, target
 
 
