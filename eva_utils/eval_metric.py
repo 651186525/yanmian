@@ -1,3 +1,5 @@
+import numpy as np
+
 from eva_utils.compute_metric import *
 
 
@@ -67,7 +69,7 @@ def calculate_FMA(rgb_img, mask, mask_label, not_exist_landmark, upper_lip, chin
 def calculate_PL(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint, nasion, towards_right,
                  color=(255, 0, 0), color_point=(0, 255, 0), color_area=(200, 100, 200)):
     if any([i == j for i in [mask_label, 11, 13] for j in not_exist_landmark]):
-        return -1, 'not'
+        return -1, 'not', [0,0]
     show_area(rgb_img, mask, mask_label, color=color_area)
     for i in [under_midpoint, nasion]:
         cv2.circle(rgb_img, i, 6, color_point, -1)
@@ -75,15 +77,40 @@ def calculate_PL(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint, 
     # 画曲线：cv2.line(lineType=cv2.LINE_AA)
     big_distance, big_head_point, big_line_point = get_biggest_distance(mask, mask_label, [nasion, under_midpoint],
                                                                         h_img)
-    # 判断颜面轮廓线与额骨的位置关系，相交 cross，重合 overlap，前 fore
-    position = get_position(big_head_point, big_line_point, towards_right)
+    # 判断颜面轮廓线FPL与额骨的位置关系，前(阴性-1），后（阳性 1），或重合（0）
+    position = get_position([under_midpoint, nasion], [under_midpoint, big_head_point], h_img)
     cv2.line(rgb_img, under_midpoint, big_line_point, color=color, thickness=2)
     # cv2.line(rgb_img, under_midpoint, nasion, color=(255,0,0),thickness=2)
     cv2.line(rgb_img, big_head_point, big_line_point, color=color, thickness=2)
     mid_point = [int((i + j) / 2) for i, j in zip(big_line_point, big_head_point)]
     cv2.putText(rgb_img, str(round(big_distance, 3)), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
     # cv2.putText(rgb_img, str(position), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
-    return big_distance, position
+    return big_distance, position, big_head_point
+
+def calculate_MML(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint, upper_midpoint, big_head_point, towards_right,
+                 color=(255, 0, 0), color_point=(0, 255, 0), color_area=(200, 100, 200)):
+    if any([i == j for i in [mask_label, 11, 13] for j in not_exist_landmark]):
+        return -1, 'not'
+    show_area(rgb_img, mask, mask_label, color=color_area)
+    for i in [under_midpoint, upper_midpoint]:
+        cv2.circle(rgb_img, i, 6, color_point, -1)
+    h_img = rgb_img.shape[0]
+    # 求得上下颌骨连线到PL求得最大距离的额骨对应点之间的距离
+    distance, line_keypoint = get_distance([under_midpoint, upper_midpoint], big_head_point, h_img)
+    # todo  位置该如何定量
+    # 求得上下颌骨连线MML 与 下颌骨额骨点连线的位置关系 ， 前(阴性-1），后（阳性 1），或重合（0）
+    position = 1 if distance > 0 else 0 if distance==0 else -1
+    # position = get_position([under_midpoint, upper_midpoint], [under_midpoint, big_head_point], h_img)
+    print(position)
+    # 画曲线：cv2.line(lineType=cv2.LINE_AA)
+
+    cv2.line(rgb_img, under_midpoint, line_keypoint, color=color, thickness=2)
+    # cv2.line(rgb_img, under_midpoint, nasion, color=(255,0,0),thickness=2)
+    cv2.line(rgb_img, big_head_point, line_keypoint, color=color, thickness=2)
+    mid_point = [int((i + j) / 2) for i, j in zip(line_keypoint, big_head_point)]
+    cv2.putText(rgb_img, str(round(distance, 3)), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
+    # cv2.putText(rgb_img, str(position), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
+    return distance, position
 
 
 def show_area(img, mask, mask_label, color=(200, 100, 200)):

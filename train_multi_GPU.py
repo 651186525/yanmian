@@ -6,7 +6,6 @@ import torch
 
 from src import UNet
 from train_utils import train_one_epoch, evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
-from my_dataset import DriveDataset
 import transforms as T
 from yanMianDataset import YanMianDataset
 

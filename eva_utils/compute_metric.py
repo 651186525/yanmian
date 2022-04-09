@@ -84,7 +84,7 @@ def get_biggest_distance(mask, mask_label, line, h_img):
     if len(points_y)==0:
         return None, None, None
     big_distance = 0
-    big_point = [0,0]  # mask_label上的最大点
+    head_point = [0,0]  # mask_label上的最大点
     big_keypoint = [0,0]  # 直线上相对的最大点
     for x,y in zip(points_x, points_y):
         # 计算点（x,y）到line的距离 以及 垂点keypoint
@@ -93,9 +93,18 @@ def get_biggest_distance(mask, mask_label, line, h_img):
             continue
         if abs(disance) > big_distance:
             big_distance = abs(disance)
-            big_point = [x,y]
+            head_point = [x,y]
             big_keypoint = keypoint
-    return big_distance, big_point, big_keypoint
+    # 额骨预测线条较宽，将连线上一定误差内的所有点的都纳入,最后平均
+    head_points = []
+    _, k,b = get_angle_k_b(head_point, big_keypoint, h_img)
+    for x,y in zip(points_x, points_y):
+        # 计算误差
+        if -1< h_img-y - (x*k+b) < 1:
+            head_points.append([x,y])
+    head_point = np.mean(head_points, axis=0, dtype=np.int)
+    return big_distance, head_point, big_keypoint
+
 
 def get_closest_point(mask, mask_label, point):
     """
@@ -114,22 +123,29 @@ def get_closest_point(mask, mask_label, point):
             small_point = [x,y]
     return small_point
 
-def get_position(head_point, line_point, right):
+def get_position(line1, line2, h_img):
     """
-    判单两个点的位置关系 --》额骨上一点和对应的直线上一点
-    输入点以左上为坐标系原点
-    head_point  额骨上点
-    line_point  直线上点
+    判断line1，在line2的位置关系
+    line1在line：前(阴性-1），后（阳性 1），或重合（0）
     """
-    if right:
-        head_point, line_point = line_point, head_point
-    if head_point[0] < line_point[0]:
-        position = 'cross'
-    elif head_point[0] == line_point[0]:
-        position = 'overlap'
+    _,k1,_ = get_angle_k_b(line1[0], line1[1], h_img)
+    _,k2,_ = get_angle_k_b(line2[0], line2[1], h_img)
+    if k1 > 0 and k2 > 0:
+        if k1 > k2:
+            return -1
+        elif k1 == k2:
+            return 0
+        else:
+            return  1
+    elif k1 < 0 and k2 < 0:
+        if k1 > k2:
+            return 1
+        elif k1 == k2:
+            return 0
+        else:
+            return -1
     else:
-        position = 'fore'
-    return position
+        raise '位置错误'
 
 def remove_under_contours(contours, h_img):
     """

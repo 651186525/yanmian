@@ -58,8 +58,8 @@ def main():
         model_poly_curve.eval()
 
     with torch.no_grad():  # 关闭梯度计算功能，测试不需要计算梯度
-        result_pre = {'angle_IFA':[],'angle_MNM': [], 'angle_FMA': [], 'distance': [], 'position': []}
-        result_gt = {'angle_IFA':[],'angle_MNM': [], 'angle_FMA': [], 'distance': [], 'position': []}
+        result_pre = {'IFA':[],'MNM': [], 'FMA': [], 'FPL': [], 'PL': [], 'MML':[], 'FS':[]}
+        result_gt = {'IFA':[],'MNM': [], 'FMA': [], 'FPL': [], 'PL': [], 'MML':[], 'FS':[]}
         mse = {i: [] for i in range(8, 14)}
         dices = []
         get_roi = True
@@ -119,15 +119,14 @@ def main():
                 # plt.imshow(pre_target['mask'],cmap='gray')
                 # plt.show()
 
-                # 分指标展示
-                # for metric in ['IFA', 'MNM', 'FMA', 'PL']:
-                #     show_one_metric(img, ground_truth, pre_target, metric, not_exist_landmark,)
-
+                # 分指标展示'IFA', 'MNM', 'FMA', 'FPL',
+                # for metric in ['MML']:
+                #     show_one_metric(img, ground_truth, pre_target, metric, not_exist_landmark, show_img=False)
                 #  计算颜面的各个指标
-                pre_data = calculate_metrics(img, pre_target, not_exist_landmark, is_gt=False)
-                gt_data = calculate_metrics(img, ground_truth, not_exist_landmark=[])
+                pre_data = calculate_metrics(img, pre_target, not_exist_landmark, is_gt=False, show_img=False)
+                gt_data = calculate_metrics(img, ground_truth, not_exist_landmark=[], show_img=False)
 
-                for key in ['angle_IFA', 'angle_MNM', 'angle_FMA', 'distance','position']:
+                for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
                     result_pre[key].append(pre_data[key])
                     result_gt[key].append(gt_data[key])
 
@@ -150,10 +149,11 @@ def main():
 
     # 评估颜面误差
     if model2:
-        for i in ['angle_IFA','angle_MNM', 'angle_FMA', 'distance']:
+        for i in ['IFA','MNM', 'FMA', 'PL', 'FS']:
             pre = result_pre[i]
             gt = result_gt[i]
             print(i)
+            # python 数组可以用count 不可以用 Ture or False作为索引， numpy 数组可以用True or False作为索引，不能用count
             print('没有预测：', pre.count(-1))
             if pre.count(-1) >0:
                 temp = pre
@@ -173,10 +173,12 @@ def main():
                 error.append(abs(m-n))
             print('error:', np.mean(error))
             print('error标准差:', np.std(error))
-        print('position')
-        print('not  gt:',result_gt['position'].count('not'), '    pre: ', result_pre['position'].count('not'))
-        print('cross  gt:',result_gt['position'].count('cross'), '    pre: ', result_pre['position'].count('cross'))
-        print('fore  gt:',result_gt['position'].count('fore'), '    pre: ', result_pre['position'].count('fore'))
+        for i in ['FPL', 'MML']:
+            print(i)
+            print('not  gt:',result_gt[i].count('not'), '    pre: ', result_pre[i].count('not'))
+            print('阳性 1  gt:',result_gt[i].count(1), '    pre: ', result_pre[i].count(1))
+            print('阴性 -1  gt:',result_gt[i].count(-1), '    pre: ', result_pre[i].count(-1))
+            print('0  gt:', result_gt[i].count(0), '    pre: ', result_pre[i].count(0))
 
 
 if __name__ == '__main__':

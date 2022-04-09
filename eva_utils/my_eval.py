@@ -182,8 +182,8 @@ def show_predict(rgb_img, prediction, classes):
     plt.show()
 
 
-def show_one_metric(rgb_img, gt, pre, metric: str, not_exist_landmark):
-    assert metric in ['IFA', 'MNM', 'FMA', 'PL'], "metric must in ['IFA', 'MNM', 'FMA', 'PL']"
+def show_one_metric(rgb_img, gt, pre, metric: str, not_exist_landmark, show_img: bool = False):
+    assert metric in ['IFA', 'MNM', 'FMA', 'PL', 'MML'], "metric must in ['IFA', 'MNM', 'FMA', 'PL', 'MML']"
     landmark_gt = gt['landmark']
     mask_gt = gt['mask']
     landmark_pre = pre['landmark']
@@ -227,19 +227,29 @@ def show_one_metric(rgb_img, gt, pre, metric: str, not_exist_landmark):
                                   color=(255, 0, 0), color_point=(255, 0, 0))
         angle_FMA = calculate_FMA(img, mask_pre, 1, not_exist_landmark, upper_lip_pre, chin_pre, towards_right,
                                   color=(205, 205, 0), color_point=(205, 205, 0), color_area=(187, 255, 255))
-    else:
+    elif metric == 'PL' or metric == 'MML':
+        MML_img = img.copy()
         # 颜面轮廓线（FPL） & 颜面轮廓（PL）距离     -----> 完成
-        big_distance, position = calculate_PL(img, mask_gt, 4, not_exist_landmark, under_midpoint_gt, nasion_gt,
+        big_distance, position, big_head_point_gt = calculate_PL(img, mask_gt, 4, not_exist_landmark, under_midpoint_gt, nasion_gt,
                                               towards_right, color=(255, 0, 0), color_point=(255, 0, 0))
-        big_distance, position = calculate_PL(img, mask_pre, 4, not_exist_landmark, under_midpoint_pre, nasion_pre,
+        big_distance, position, big_head_point_pre = calculate_PL(img, mask_pre, 4, not_exist_landmark, under_midpoint_pre, nasion_pre,
                                               towards_right, color=(205, 205, 0), color_point=(205, 205, 0),
                                               color_area=(187, 255, 255))
-    plt.imshow(img)
-    plt.title(metric)
+        if metric == 'MML':
+            img = MML_img
+            # 下颌上颌线（MML） & 额前空间（FS）距离     -----> 完成
+            big_distance2, position2 = calculate_MML(img, mask_gt, 4, not_exist_landmark, under_midpoint_gt, upper_midpoint_gt, big_head_point_gt,
+                                                  towards_right, color=(255, 0, 0), color_point=(255, 0, 0))
+            big_distance2, position2 = calculate_MML(img, mask_pre, 4, not_exist_landmark, under_midpoint_pre, upper_midpoint_pre, big_head_point_pre,
+                                              towards_right, color=(205, 205, 0), color_point=(205, 205, 0),
+                                              color_area=(187, 255, 255))
+    if show_img:
+        plt.imshow(img)
+        plt.title(metric)
     plt.show()
 
 
-def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True):
+def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True, show_img: bool = False):
     landmark = gt['landmark']
     mask = gt['mask']
     img = rgb_img.copy()
@@ -274,12 +284,12 @@ def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True):
     angle_FMA = calculate_FMA(img, mask, 1, not_exist_landmark, upper_lip, chin, towards_right, color=(255, 106, 106))
 
     # 颜面轮廓线（FPL） & 颜面轮廓（PL）距离     -----> 完成
-    big_distance, position = calculate_PL(img, mask, 4, not_exist_landmark, under_midpoint, nasion, towards_right,
-                                          color=(0, 191, 255))
-
-    data = {'angle_IFA': angle_IFA, 'angle_MNM': angle_MNM, 'angle_FMA': angle_FMA, 'distance': big_distance,
-            'position': position}
+    PL, FPL, head_point = calculate_PL(img, mask, 4, not_exist_landmark, under_midpoint, nasion, towards_right, color=(0, 191, 255))
+    # 颜面轮廓线（MML） & 颜面轮廓（FS）距离     -----> 完成
+    FS, MML = calculate_MML(img, mask, 4, not_exist_landmark, under_midpoint, upper_midpoint, head_point, towards_right, color=(0, 191, 255))
+    data = {'IFA': angle_IFA, 'MNM': angle_MNM, 'FMA': angle_FMA, 'PL': PL, 'FPL':FPL, 'FS': FS, 'MML':MML}
     plt.title('gt' if is_gt else 'pre')
-    # plt.imshow(img)
-    # plt.show()
+    if show_img:
+        plt.imshow(img)
+        plt.show()
     return data
