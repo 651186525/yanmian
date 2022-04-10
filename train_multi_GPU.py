@@ -70,8 +70,8 @@ def main(args):
     # segmentation nun_classes + background
     num_classes = args.num_classes + 1
 
-    mean = (0.2292, 0.2299, 0.2304)
-    std = (0.2188, 0.2194, 0.2196)
+    mean = (0.2333, 0.2338, 0.2342)
+    std = (0.2198, 0.2202, 0.2203)
 
     # 用来保存coco_info的文件
     results_file = "var100_ROI30.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/poly_curve/with_test', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/poly_curve/data3', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     # 不训练，仅测试

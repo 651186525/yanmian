@@ -82,7 +82,7 @@ def check_data(curve, landmark, poly_points, json_dir, data_type, detele_file=Fa
             # 删除txt中的这一行数据
             txt_path = os.path.join('./data', data_type+'.txt')
             json_name = json_dir.split('/')[-1]
-            with open(txt_path, 'r', encoding='gbk') as f:
+            with open(txt_path, 'r', encoding='UTF-8') as f:
                 lines = f.readlines()
             new = ''
             for line in lines:
