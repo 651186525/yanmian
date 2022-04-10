@@ -71,8 +71,8 @@ def main(args):
     # segmentation nun_classes + background
     num_classes = args.num_classes + 1
 
-    mean = (0.2292, 0.2299, 0.2304)
-    std = (0.2188, 0.2194, 0.2196)
+    mean = (0.2333, 0.2338, 0.2342)
+    std = (0.2198, 0.2202, 0.2203)
 
     # 用来保存coco_info的文件
     results_file = "var100_ROI30.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
