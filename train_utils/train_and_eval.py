@@ -12,7 +12,7 @@ def criterion(inputs, target, num_classes: int = 2, dice: bool = True, mse:bool 
 
     for name, x in inputs.items():
         # 忽略target中值为255的像素，255的像素是目标边缘或者padding填充
-        # loss = 0
+        loss = 0
         # 交叉熵损失：在通道方向softmax后，根据x的值计算
         if num_classes == 2:
             # 设置cross_entropy中背景和前景的loss权重(根据自己的数据集进行设置)
@@ -26,7 +26,7 @@ def criterion(inputs, target, num_classes: int = 2, dice: bool = True, mse:bool 
             loss_weight = torch.as_tensor(loss_weight, device=target.device)
         else:
             loss_weight = None
-        loss = nn.functional.cross_entropy(x, target, ignore_index=ignore_index, weight=loss_weight)  # 函数式API
+        # loss = nn.functional.cross_entropy(x, target, ignore_index=ignore_index, weight=loss_weight)  # 函数式API
         if dice is True:
             # 针对每个类别，背景，前景都需要计算他的dice系数
             # 根据gt构建每个类别的矩阵

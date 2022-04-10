@@ -199,4 +199,4 @@ def need_horizontal_filp(img, landmarks):
 # 0135877_Mengyan_Tang_20200917091142414_jpg_Label.json  未标注曲线
 # 1 curve: 3, 5 landmark:6, 上颌骨（下颌骨）未被标注（无label）:17, 存在曲线未被标注（无label）:1
 # 第三轮标注错误情况
-# 1 curve: 1, 5 landmark: 5, 上颌骨（下颌骨）未被标注（无label）:2, 存在曲线未被标注（无label）:7
+# 1 curve: 1, 5 landmark: 5, 上颌骨（下颌骨）未被标注（无label）:2, 存在曲线未被标注（无label）:0
