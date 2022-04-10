@@ -78,7 +78,8 @@ def calculate_PL(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint, 
     big_distance, big_head_point, big_line_point = get_biggest_distance(mask, mask_label, [nasion, under_midpoint],
                                                                         h_img)
     # 判断颜面轮廓线FPL与额骨的位置关系，前(阴性-1），后（阳性 1），或重合（0）
-    position = get_position([under_midpoint, nasion], [under_midpoint, big_head_point], h_img)
+    position = 1 if big_distance > 0 else 0 if big_distance == 0 else -1
+    # position = get_position([under_midpoint, nasion], [under_midpoint, big_head_point], h_img)
     cv2.line(rgb_img, under_midpoint, big_line_point, color=color, thickness=2)
     # cv2.line(rgb_img, under_midpoint, nasion, color=(255,0,0),thickness=2)
     cv2.line(rgb_img, big_head_point, big_line_point, color=color, thickness=2)

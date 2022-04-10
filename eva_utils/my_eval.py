@@ -45,7 +45,7 @@ def get_ground_truth(json_dir, mask_root):
 
     return target
 
-def create_predict_target(img, prediction, json_dir):
+def create_predict_target(img, prediction, json_dir, deal_pre:bool = False):
     poly_curve = functional.softmax(prediction[:5], dim=0)
     poly_curve[poly_curve < 0.5] = 0   # 去除由于裁剪的重复阴影，同时避免小值出现
     poly_curve = np.argmax(poly_curve, axis=0)
@@ -71,82 +71,89 @@ def create_predict_target(img, prediction, json_dir):
             #     landmark[i + 3] = [int(np.mean(x[0])), int(np.mean(y[0]))]
             #     temp = cv2.erode(temp, kernel, iterations=1)
 
-    # 在点定位精度较高的情况下，根据点定位结果优化两个区域和曲线
-    from yanMianDataset import need_horizontal_filp
-    towards_right = need_horizontal_filp(img, landmark)
-    nasion = landmark[13]
+    if not deal_pre:
+        for i in range(1, 5):
+            y, x = np.where(poly_curve == i)
+            if len(y) == 0:
+                not_exist_landmark.append(i)
+                continue
+        mask = np.array(poly_curve)
+    else:
+        # 在点定位精度较高的情况下，根据点定位结果优化两个区域和曲线
+        from yanMianDataset import need_horizontal_filp
+        towards_right = need_horizontal_filp(img, landmark)
+        nasion = landmark[13]
 
-    mask = np.zeros(prediction.shape[-2:], dtype=np.uint8)
-    kernel = np.ones((5, 5), dtype=np.uint8)  # 对每个区域做闭运算，去除缺陷
-    for i in range(1, 5):
-        temp = np.zeros_like(mask)
-        y,x = np.where(poly_curve==i)
-        if len(y)==0:
-            not_exist_landmark.append(i)
-            continue
+        mask = np.zeros(prediction.shape[-2:], dtype=np.uint8)
+        kernel = np.ones((5, 5), dtype=np.uint8)  # 对每个区域做闭运算，去除缺陷
+        for i in range(1, 5):
+            temp = np.zeros_like(mask)
+            y,x = np.where(poly_curve==i)
+            if len(y)==0:
+                not_exist_landmark.append(i)
+                continue
 
-        temp[poly_curve == i] = 255
-        temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
-        # temp = cv2.morphologyEx(temp, cv2.MORPH_OPEN, kernel, iterations=5)
-        if i==3:  # 去除鼻根为中心的20像素矩形外的结果
-            temp[nasion[1]+20:,:]=0
-            temp[:,:nasion[0]-50]=0
-            temp[:nasion[1]-50,:]=0
-            temp[:,nasion[0]+50:]=0
-            tt = np.where(temp==255)
-            if len(tt[0])==0:
-                temp = np.zeros_like(mask)
-                temp[poly_curve == i] = 255
-                temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
-            # 判断处理后，斜率是否为0，即为不正确预测
-            shift_h, shift_w = np.where(temp==255)
-            index = shift_w < nasion[0] if towards_right else shift_w > nasion[0]
-            if any(index):
-                shift_h = shift_h[index]
-                shift_w = shift_w[index]
-            mean_point = [int(np.mean(shift_w)), int(np.mean(shift_h))]
-            _, k, _ = get_angle_k_b(mean_point, nasion, img.size[1])
-            if k==0:
-                not_exist_landmark.append(i)  # 检查数据
-        if i==4:
-            # 去除真实额骨上方的所有最小点，避免误判
-            while 1:
-                top_x = np.mean(x[np.argwhere(y == y.min())])
-                index = [[m,n] for m,n in zip(x,y) if (top_x-10<m<top_x+10 and y.min()-10<n<y.min()+10)]
-                if len(index) < 30:
-                    for m,n in index:
-                        temp[n,m] = 0
-                    y,x = np.where(temp==255)
-                else:
-                    break
-                if len(x)==0:  # 此处说明处理后，额骨区域全部为0了，即预测的全部区域都为小区域，所以回到未处理的状态
+            temp[poly_curve == i] = 255
+            temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
+            # temp = cv2.morphologyEx(temp, cv2.MORPH_OPEN, kernel, iterations=5)
+            if i==3:  # 去除鼻根为中心的20像素矩形外的结果
+                temp[nasion[1]+20:,:]=0
+                temp[:,:nasion[0]-50]=0
+                temp[:nasion[1]-50,:]=0
+                temp[:,nasion[0]+50:]=0
+                tt = np.where(temp==255)
+                if len(tt[0])==0:
                     temp = np.zeros_like(mask)
                     temp[poly_curve == i] = 255
-                    y, x = np.where(temp == 255)
-                    break
-            top_x = x[np.argwhere(y==y.min())]
-            if towards_right:
-                top_x = top_x.max()
-                temp[nasion[1]:,:]=0  # 去除鼻根下方，右方，额骨最高点左方上方的额骨预测结果
-                temp[:,nasion[0]:]=0
-                temp[:,:top_x] = 0
-                temp[:y.min(),:]=0
-            else:
-                top_x = top_x.min()
-                temp[nasion[1]:,:]=0
-                temp[:,:nasion[0]]=0
-                temp[:,top_x:]=0
-                temp[:y.min(),:]=0
-            tt = np.where(temp==255)
-            if len(tt[0])==0:
-                temp = np.zeros_like(mask)
-                temp[poly_curve == i] = 255
-                temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
-        mask[temp == 255] = i
+                    temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
+                # 判断处理后，斜率是否为0，即为不正确预测
+                shift_h, shift_w = np.where(temp==255)
+                index = shift_w < nasion[0] if towards_right else shift_w > nasion[0]
+                if any(index):
+                    shift_h = shift_h[index]
+                    shift_w = shift_w[index]
+                mean_point = [int(np.mean(shift_w)), int(np.mean(shift_h))]
+                _, k, _ = get_angle_k_b(mean_point, nasion, img.size[1])
+                if k==0:
+                    not_exist_landmark.append(i)  # 检查数据
+            if i==4:
+                # 去除真实额骨上方的所有最小点，避免误判
+                while 1:
+                    top_x = np.mean(x[np.argwhere(y == y.min())])
+                    index = [[m,n] for m,n in zip(x,y) if (top_x-10<m<top_x+10 and y.min()-10<n<y.min()+10)]
+                    if len(index) < 30:
+                        for m,n in index:
+                            temp[n,m] = 0
+                        y,x = np.where(temp==255)
+                    else:
+                        break
+                    if len(x)==0:  # 此处说明处理后，额骨区域全部为0了，即预测的全部区域都为小区域，所以回到未处理的状态
+                        temp = np.zeros_like(mask)
+                        temp[poly_curve == i] = 255
+                        y, x = np.where(temp == 255)
+                        break
+                top_x = x[np.argwhere(y==y.min())]
+                if towards_right:
+                    top_x = top_x.max()
+                    temp[nasion[1]:,:]=0  # 去除鼻根下方，右方，额骨最高点左方上方的额骨预测结果
+                    temp[:,nasion[0]:]=0
+                    temp[:,:top_x] = 0
+                    temp[:y.min(),:]=0
+                else:
+                    top_x = top_x.min()
+                    temp[nasion[1]:,:]=0
+                    temp[:,:nasion[0]]=0
+                    temp[:,top_x:]=0
+                    temp[:y.min(),:]=0
+                tt = np.where(temp==255)
+                if len(tt[0])==0:
+                    temp = np.zeros_like(mask)
+                    temp[poly_curve == i] = 255
+                    temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
+            mask[temp == 255] = i
 
     # plt.imshow(mask, cmap='gray')
     # plt.show()
-
 
     target = {'mask': mask, 'landmark': landmark}
     if len(not_exist_landmark) > 0:
@@ -249,7 +256,7 @@ def show_one_metric(rgb_img, gt, pre, metric: str, not_exist_landmark, show_img:
     plt.show()
 
 
-def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True, show_img: bool = False):
+def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True, show_img: bool = False, compute_MML:bool = True):
     landmark = gt['landmark']
     mask = gt['mask']
     img = rgb_img.copy()
@@ -286,7 +293,10 @@ def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True, show_
     # 颜面轮廓线（FPL） & 颜面轮廓（PL）距离     -----> 完成
     PL, FPL, head_point = calculate_PL(img, mask, 4, not_exist_landmark, under_midpoint, nasion, towards_right, color=(0, 191, 255))
     # 颜面轮廓线（MML） & 颜面轮廓（FS）距离     -----> 完成
-    FS, MML = calculate_MML(img, mask, 4, not_exist_landmark, under_midpoint, upper_midpoint, head_point, towards_right, color=(0, 191, 255))
+    if compute_MML:
+        FS, MML = calculate_MML(img, mask, 4, not_exist_landmark, under_midpoint, upper_midpoint, head_point, towards_right, color=(0, 191, 255))
+    else:
+        FS, MML = -1,0
     data = {'IFA': angle_IFA, 'MNM': angle_MNM, 'FMA': angle_FMA, 'PL': PL, 'FPL':FPL, 'FS': FS, 'MML':MML}
     plt.title('gt' if is_gt else 'pre')
     if show_img:

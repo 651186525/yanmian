@@ -19,7 +19,7 @@ def time_synchronized():
 
 def main():
     classes = 5  # exclude background
-    weights_path = "./model/heatmap/var100_ROI30/best_model.pth"  # 127, 136
+    weights_path = "./model/heatmap/var100_ROI30_5.947/best_model.pth"  # 127, 136
     test_txt = './data/test.txt'
     assert os.path.exists(weights_path), f"weights {weights_path} not found."
     assert os.path.exists(test_txt), f'test.txt {test_txt} not found.'
@@ -51,7 +51,7 @@ def main():
 
     model2 = True
     if model2:
-        weights_poly_curve = './model/poly_curve/ROI30_no_entropy_best/best_model.pth'
+        weights_poly_curve = './model/poly_curve/data3_ROI30_no_0.7095/best_model.pth'
         model_poly_curve = UNet(in_channels=3, num_classes=5, base_c=32)
         model_poly_curve.load_state_dict(torch.load(weights_poly_curve, map_location='cpu')['model'])
         model_poly_curve.to(device)
@@ -115,7 +115,7 @@ def main():
                 prediction = torch.cat((prediction2.squeeze(), prediction), dim=0)
 
                 # 生成预测数据的统一格式的target{'landmark':landmark,'mask':mask}
-                pre_target, not_exist_landmark = create_predict_target(ROI_img, prediction, json_dir)
+                pre_target, not_exist_landmark = create_predict_target(ROI_img, prediction, json_dir, deal_pre=False)
                 # plt.imshow(pre_target['mask'],cmap='gray')
                 # plt.show()
 
@@ -123,8 +123,8 @@ def main():
                 # for metric in ['MML']:
                 #     show_one_metric(img, ground_truth, pre_target, metric, not_exist_landmark, show_img=False)
                 #  计算颜面的各个指标
-                pre_data = calculate_metrics(img, pre_target, not_exist_landmark, is_gt=False, show_img=False)
-                gt_data = calculate_metrics(img, ground_truth, not_exist_landmark=[], show_img=False)
+                pre_data = calculate_metrics(img, pre_target, not_exist_landmark, is_gt=False, show_img=False, compute_MML=True)
+                gt_data = calculate_metrics(img, ground_truth, not_exist_landmark=[], show_img=False, compute_MML=True)
 
                 for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
                     result_pre[key].append(pre_data[key])
@@ -135,12 +135,12 @@ def main():
     for i in range(8, 14):
         print(f'{i} :{sum(mse[i]) / len(json_list):.3f}  std: {np.std(mse[i])}')
     # var100ROI30 （var50不好,150也不好
-    # 8 :7.565  std: 11.792678845505725
-    # 9 :5.256  std: 6.386437015054179
-    # 10 :6.322  std: 3.4446265923261605
-    # 11 :5.605  std: 3.0213342618582524
-    # 12 :4.937  std: 5.2445772824275005
-    # 13 :4.430  std: 2.534100979792614
+    # 8 :5.052  std: 6.2149917366883125
+    # 9 :5.072  std: 6.211798032693594
+    # 10 :6.238  std: 5.06599041862497
+    # 11 :5.073  std: 2.60110245899234
+    # 12 :3.846  std: 2.5803249000511546
+    # 13 :3.902  std: 2.274749031171571
 
     # dice 误差
     print('avg_dice:', np.mean(dices))
