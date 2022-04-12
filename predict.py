@@ -36,7 +36,7 @@ def create_model(num_classes):
     # resNet50+fpn+faster_RCNN
     # 注意，这里的norm_layer要和训练脚本中保持一致
     backbone = resnet50_fpn_backbone(norm_layer=torch.nn.BatchNorm2d)
-    model = FasterRCNN(backbone=backbone, num_classes=num_classes, rpn_score_thresh=0.5, min_size=224, max_size=256)
+    model = FasterRCNN(backbone=backbone, num_classes=num_classes, rpn_score_thresh=0.5, min_size=320, max_size=320)
 
     return model
 
@@ -89,16 +89,28 @@ def compute_iou(bbox1, bbox2):
     size_union = size_1 + size_2 - size_intersection
     return size_intersection / size_union
 
+def include_gt(bbox1, bbox2):
+    """
+    判断pre box是否包含了去除补充边界后的图形
+    """
+    boxgt = [float(x) for x in bbox1]
+    boxpre = [float(x) for x in bbox2]
+    (x0_1, y0_1, x1_1, y1_1) = boxgt
+    (x0_2, y0_2, x1_2, y1_2) = boxpre
+    if x0_1 > x0_2 and y0_1 > y0_2 and x1_1 < x1_2 and y1_1 < y1_2:
+        return True
+    return False
+
 def main():
     # get devices
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:5" if torch.cuda.is_available() else "cpu")
     print("using {} device.".format(device))
 
     # create model
     model = create_model(num_classes=2)
 
     # load train weights
-    train_weights = "./model/detec/data3_adam_no_pretrain/best_model.pth"
+    train_weights = "./model/detec/data3/best_model.pth"
     assert os.path.exists(train_weights), "{} file dose not exist.".format(train_weights)
     model.load_state_dict(torch.load(train_weights, map_location=device)["model"])
     model.to(device)
@@ -111,12 +123,13 @@ def main():
 
     boxes_file = {}
     iou = []
+    inclu = []
     model.eval()  # 进入验证模式
     with torch.no_grad():
         # init
-        for i in range(len(test_dataset)):
-            original_img, target = test_dataset[i]
-            json_name = test_dataset.json_list[i]
+        for index in range(len(test_dataset)):
+            original_img, target = test_dataset[index]
+            json_name = test_dataset.json_list[index]
             # from pil image to tensor, do not normalize image
             data_transform = transforms.Compose([transforms.ToTensor()])
             img = data_transform(original_img)
@@ -135,21 +148,28 @@ def main():
 
             # 将预测结果存入字典中
             best_score = np.argmax(predictions['scores'].to('cpu'))
-            bbox = predictions['boxes'][best_score].to('cpu').numpy()
-            boxes_file[json_name] = bbox
+            pre_box = predictions['boxes'][best_score].to('cpu').numpy()
+            boxes_file[json_name] = pre_box
 
             draw_img = np.array(original_img)
             my_draw_boxes(draw_img, target, isgt=True)
             my_draw_boxes(draw_img, predictions, isgt=False)
+            # 计算 gt box和pre box 的IOU
             target_box = target['boxes'][0]
-            iou_ = compute_iou(target_box, bbox)
+            iou_ = compute_iou(target_box, pre_box)
             cv2.putText(draw_img, 'IOU:' + str(round(iou_,3)), [int(target_box[0]+10), int(target_box[1])+50],
                         fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=2, color=(255,0,0), thickness=2)
-            print(iou_)
-            iou.append(iou_)
-            plt.imshow(draw_img)
-            plt.show()
 
+            iou.append(iou_)
+            # 判断pre box是否包含未加边界的gt
+            _, n_border_target = test_dataset.coco_index(index, 1)
+            n_border_boxes = n_border_target['boxes'][0]
+            inclu_ = include_gt(n_border_boxes, pre_box)
+            inclu.append(inclu_)
+            print('iou:', iou_, 'include:', inclu_)
+            if iou_ < 0.8 or iou_ > 0.95:
+                plt.imshow(draw_img)
+                plt.show()
 
             # 保存预测的图片结果
             # original_img.save("test_result.jpg")
@@ -157,7 +177,7 @@ def main():
     print(np.mean(iou))
     # 将预测结果写入json文件
     boxes_json = {i: [int(k) for k in j] for i, j in boxes_file.items()}
-    with open('./data/boxes_file.json', 'w') as f:
+    with open('./data/boxes_file2.json', 'w') as f:
         json.dump(boxes_json, f)
 
 if __name__ == '__main__':

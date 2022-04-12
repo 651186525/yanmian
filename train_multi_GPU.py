@@ -19,11 +19,7 @@ def create_model(num_classes):
     backbone = resnet50_fpn_backbone(norm_layer=torch.nn.BatchNorm2d,
                                      trainable_layers=3)
     # 训练自己数据集时不要修改这里的91，修改的是传入的num_classes参数
-    #  mean = [0.1856679, 0.19323801, 0.20041189]
-    #  std = [0.18027874, 0.18715159, 0.19668025]
-    #  min_size=224, max_size=256,   # resize小尺寸试试
-    #  min_size=600, max_size=800    # centercrop 试试
-    model = FasterRCNN(backbone=backbone, num_classes=91, min_size=224, max_size=256)
+    model = FasterRCNN(backbone=backbone, num_classes=91, min_size=320, max_size=320)
     # 载入预训练模型权重
     # https://download.pytorch.org/models/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth
     weights_dict = torch.load("./detec_backbone/fasterrcnn_resnet50_fpn_coco.pth", map_location='cpu')
@@ -53,8 +49,7 @@ def main(args):
     print("Loading data")
 
     data_transform = {
-        "train": transforms.Compose([transforms.ToTensor(),
-                                     transforms.RandomHorizontalFlip(0.5)]),
+        "train": transforms.Compose([transforms.ToTensor()]),
         "val": transforms.Compose([transforms.ToTensor()])
     }
 
@@ -150,15 +145,6 @@ def main(args):
         coco_info, iou = utils.evaluate(model, data_loader_test, device=device)
         val_map.append(coco_info[1])  # pascal mAP
 
-        # # 只在主进程上进行写操作
-        # if args.rank in [-1, 0]:
-        #     # write into txt
-        #     with open(results_file, "a") as f:
-        #         # 写入的数据包括coco指标还有loss和learning rate
-        #         result_info = [str(round(i, 4)) for i in coco_info + [mean_loss.item()]] + [str(round(lr, 6))]
-        #         txt = "epoch:{} {}".format(epoch, '  '.join(result_info))
-        #         f.write(txt + "\n")
-
         if args.output_dir:
             # 只在主节点上执行保存权重操作
             save_files = {
@@ -181,16 +167,6 @@ def main(args):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
     print('best IOU:', best_iou)
-    # if args.rank in [-1, 0]:
-    #     # plot loss and lr curve
-    #     if len(train_loss) != 0 and len(learning_rate) != 0:
-    #         from plot_curve import plot_loss_and_lr
-    #         plot_loss_and_lr(train_loss, learning_rate, 'center_crop')
-
-        # # plot mAP curve
-        # if len(val_map) != 0:
-        #     from plot_curve import plot_map
-        #     plot_map(val_map, 'center_crop')
 
 
 if __name__ == "__main__":
@@ -202,11 +178,11 @@ if __name__ == "__main__":
     # 训练文件的根目录
     parser.add_argument('--data-path', default='./', help='dataset')
     # 训练设备类型
-    parser.add_argument('--device', default='cuda', help='device')
+    parser.add_argument('--device', default='cuda:3', help='device')
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=1, type=int, help='num_classes')
     # 每块GPU上的batch_size
-    parser.add_argument('-b', '--batch-size', default=64, type=int,
+    parser.add_argument('-b', '--batch-size', default=32, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
@@ -264,5 +240,5 @@ if __name__ == "__main__":
     main(args)
 
 
-# CUDA_VISIBLE_DEVICES=0,3 python -m torch.distributed.launch --nproc_per_node=2 --use_env train_multi_GPU.py
+# CUDA_VISIBLE_DEVICES=3,4 python -m torch.distributed.launch --nproc_per_node=2 --use_env train_multi_GPU.py
 # python -m torch.distributed.launch --nproc_per_node=8 --use_env train_multi_GPU.py
