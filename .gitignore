@@ -5,3 +5,5 @@
 /data/masks
 /data/test_img
 /detec*
+/data/measure
+/model

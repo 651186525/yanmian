@@ -6,19 +6,29 @@ from data.init_data import check_data
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-from torchvision.transforms.functional import hflip, to_pil_image
+from torchvision.transforms.functional import hflip, to_pil_image, crop
 from transforms import GetROI, Resize
 import matplotlib.pyplot as plt
 
 
 class YanMianDataset(Dataset):
-    def __init__(self, root: str, transforms=None, data_type: str = 'train', resize=None):
+    def __init__(self, root: str, transforms=None, data_type: str = 'train', resize=None, pre_roi = False):
+        '''
+        Args:
+            root:
+            transforms:
+            data_type: train，val， test
+            resize: 是否进行resize相应尺寸
+            pre_roi: 测试时可以用训练的检测ROI模型所预测的Roi来进行测试
+        '''
         assert data_type in ['train', 'val', 'test'], "data_type must be in ['train', 'val', 'test']"
         self.root = os.path.join(root, 'data')
         self.transforms = transforms
         self.resize = resize
         self.json_list = []
         self.data_type = data_type
+        self.pre_roi = pre_roi
+        self.towards_right = True
 
         # read txt file and save all json file list (train/val/test)
         json_path = os.path.join(self.root, 'jsons')
@@ -27,6 +37,12 @@ class YanMianDataset(Dataset):
         with open(txt_path) as read:
             self.json_list = [os.path.join(json_path, line.strip())
                               for line in read.readlines() if len(line.strip()) > 0]
+
+        if pre_roi:
+            roi_str = open('./data/boxes_file.json')
+            roi_data = json.load(roi_str)
+            roi_str.close()
+            self.roi = roi_data
 
         # check file
         assert len(self.json_list) > 0, 'in "{}" file does not find any information'.format(data_type + '.txt')
@@ -49,8 +65,8 @@ class YanMianDataset(Dataset):
         # get image
         img_name = json_data['FileInfo']['Name']
         img_path = os.path.join(img_root, img_name)
-        img = Image.open(img_path)
-        target = {}
+        origin_image = Image.open(img_path)
+        roi_target = {}
 
         # get curve, landmark data
         temp_curve = json_data['Models']['PolygonModel2']  # list   [index]['Points']
@@ -62,6 +78,7 @@ class YanMianDataset(Dataset):
         landmark = json_data['Models']['LandMarkListModel']['Points'][0]['LabelList']
         # 将landmark转换为int，同时去除第三个维度
         landmark = {i['Label'] : np.array(i['Position'], dtype=np.int32)[:2] for i in landmark}
+        self.towards_right = towards_right(origin_image, landmark)
         poly_points = json_data['Polys'][0]['Shapes']
         # get polygon mask
         mask_path = os.path.join(mask_root, json_dir.split('/')[-1].split('.')[0] + '_mask.jpg')
@@ -85,39 +102,34 @@ class YanMianDataset(Dataset):
                     cv2.line(poly_curve, points_array[j], points_array[j + 1], color=label-3, thickness=6)
         poly_curve = torch.as_tensor(poly_curve)
         # 得到标注的ROI区域图像
-        img, poly_curve, landmark = GetROI(border_size=30)(img, poly_curve, landmark)
+        if self.pre_roi:
+            box = self.roi[json_dir]
+            left, top, right, bottom = box
+            height, width = bottom-top, right-left
+            roi_img = crop(origin_image, top, left, height, width)
+            poly_curve = crop(poly_curve, top, left, height, width)
+            landmark = {i: [j[0] - left, j[1] - top] for i, j in landmark.items()}
+        else:
+            roi_img, poly_curve, landmark = GetROI(border_size=30)(origin_image, poly_curve, landmark)
         mask = to_pil_image(poly_curve)
-
-        # # 生成heatmap mask
-        # mask = torch.zeros(6, *poly_curve.shape, dtype=torch.float)
-        # # 根据landmark 绘制高斯热图 （进行点分割）
-        # # heatmap 维度为 c,h,w 因为ToTensor会将Image(c.w,h)也变为(c,h,w)
-        # for label in landmark:
-        #     point = landmark[label]
-        #     temp_heatmap = make_2d_heatmap(point, poly_curve.shape, max_value=200, var=100)
-        #     mask[label-8] = temp_heatmap
-
-        # 将位于右上角的图片翻转到左上角
-        # if need_horizontal_filp(img, landmark):
-        #     img = hflip(img)
-        #     mask = hflip(mask)
-        #     landmark = {i:[width-j[0],j[1]] for i,j in landmark.items()}   # 将landmark也翻转
 
         # resize image
         if self.resize is not None:
-            img, mask, landmark = Resize(self.resize)(img, mask, landmark)
+            roi_img, mask, landmark = Resize(self.resize)(roi_img, mask, landmark)
         # todo
         # 似乎resize后生成了其它轮廓边缘
 
         # Image，和tensor通道组织方式不一样，但是还可以使用同一个transform是因为它内部根据类型做了处理
         if self.transforms is not None:
-            img, mask = self.transforms(img, mask)
+            roi_img, mask = self.transforms(roi_img, mask)
 
         # 生成target
-        target['mask'] = mask
-        target['landmark'] = landmark
+        roi_target['mask'] = mask
+        roi_target['landmark'] = landmark
 
-        return img, target
+        if self.pre_roi:
+            return origin_image, roi_img, roi_target, box
+        return roi_img, roi_target
 
 
     @staticmethod
@@ -161,26 +173,27 @@ def make_2d_heatmap(landmark, size, max_value = 3, var=5.0):
     heatmap = heatmap * max_value
     return heatmap
 
-def need_horizontal_filp(img, landmarks):
+def towards_right(img, landmarks):
     """
-    根据标记点位于图像的方位判断是否需要水平翻转
-    若有三分之二的landmark位于图像右上则翻转
+    根据标记点位于图像的方位判断图片的朝向
     """
-    w, h = img.size
+    if isinstance(img, torch.Tensor):
+        h, w = img.shape[-2:]
+    else:
+        w, h = img.size
     w_center, h_center = w/2, h/2
     num = 0
     # 统计landmark中有多少个点位于图像右上角
     for i in landmarks:
         if int(landmarks[i][0]) > w_center:
             num += 1
-
     if num >= 1/2 * len(landmarks):
         return True
     return False
 
 # from transforms import RightCrop
 # d = os.getcwd()
-# mydata = YanMianDataset(d, data_type='test', resize=[320,320])  # , transforms=RightCrop(2/3),resize=[256,384]
+# mydata = YanMianDataset(d, data_type='test', resize=[320,320], pre_roi=True)  # , transforms=RightCrop(2/3),resize=[256,384]
 # # a,b = mydata[0]
 # for i in range(len(mydata)):
 #     a,b = mydata[i]

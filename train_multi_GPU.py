@@ -22,8 +22,6 @@ class SegmentationPresetTrain:
         # trans = [T.MyCrop(left_size=1/6,right_size=1/6, bottom_size=1/3)]
         # trans = [T.RightCrop(2/3)]
         trans = []
-        # if hflip_prob > 0:
-        #     trans.append(T.RandomHorizontalFlip(hflip_prob))
         trans.extend([
             T.ToTensor(),
             T.Normalize(mean=mean, std=std),
