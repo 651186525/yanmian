@@ -238,7 +238,7 @@ def cat_list(images, fill_value=0):
 
 # from transforms import RightCrop
 # d = os.getcwd()
-# mydata = YanMianDataset(d, data_type='test', resize=[320,320])  # , transforms=RightCrop(2/3),resize=[256,384]
+# mydata = YanMianDataset(d, data_type='train')  # , transforms=RightCrop(2/3),resize=[256,384]
 # # a,b = mydata[0]
 # for i in range(len(mydata)):
 #     a,b = mydata[i]

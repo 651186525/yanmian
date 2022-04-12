@@ -6,3 +6,4 @@
 /data/test_img
 /detec_backbone/*.pth
 /data/measure
+/model

@@ -61,24 +61,44 @@ def my_draw_boxes(img, target, isgt:bool=False):
     for i, box in enumerate(boxes):
         xmin, ymin, xmax, ymax = box
         xmin, ymin, xmax, ymax = int(xmin), int(ymin), int(xmax), int(ymax)
-        cv2.line(img, [xmin, ymin], [xmin, ymax], color, 2, -1)
-        cv2.line(img, [xmin, ymin], [xmax, ymin], color, 2, -1)
-        cv2.line(img, [xmax, ymin], [xmax, ymax], color, 2, -1)
-        cv2.line(img, [xmin, ymax], [xmax, ymax], color, 2, -1)
+        cv2.rectangle(img, [xmin,ymin], [xmax, ymax], color, 2)
         cv2.putText(img, text + str(round(float(scores[i]), 3)), [xmin, ymax],
-                    fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=color, thickness=2)
+                    fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=2, color=color, thickness=2)
 
+
+def compute_iou(bbox1, bbox2):
+    """
+    Calculates the intersection-over-union of two bounding boxes.
+    """
+    bbox1 = [float(x) for x in bbox1]
+    bbox2 = [float(x) for x in bbox2]
+    (x0_1, y0_1, x1_1, y1_1) = bbox1
+    (x0_2, y0_2, x1_2, y1_2) = bbox2
+    # get the overlap rectangle
+    overlap_x0 = max(x0_1, x0_2)
+    overlap_y0 = max(y0_1, y0_2)
+    overlap_x1 = min(x1_1, x1_2)
+    overlap_y1 = min(y1_1, y1_2)
+    # check if there is an overlap
+    if overlap_x1 - overlap_x0 <= 0 or overlap_y1 - overlap_y0 <= 0:
+        return 0
+    # if yes, calculate the ratio of the overlap to each ROI size and the unified size
+    size_1 = (x1_1 - x0_1) * (y1_1 - y0_1)
+    size_2 = (x1_2 - x0_2) * (y1_2 - y0_2)
+    size_intersection = (overlap_x1 - overlap_x0) * (overlap_y1 - overlap_y0)
+    size_union = size_1 + size_2 - size_intersection
+    return size_intersection / size_union
 
 def main():
     # get devices
-    device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("using {} device.".format(device))
 
     # create model
     model = create_model(num_classes=2)
 
     # load train weights
-    train_weights = "./model/detec/model_105.pth"
+    train_weights = "./model/detec/data3_adam_no_pretrain/best_model.pth"
     assert os.path.exists(train_weights), "{} file dose not exist.".format(train_weights)
     model.load_state_dict(torch.load(train_weights, map_location=device)["model"])
     model.to(device)
@@ -87,13 +107,16 @@ def main():
     # original_img = Image.open("./test.png")
     dir = os.getcwd()
     test_dataset = YanMianDataset(dir, data_type='test')
-    index = random.sample(range(0, len(test_dataset)), k=30)  # 返回list 取值要带上索引
+    index = random.sample(range(0, len(test_dataset)), k=len(test_dataset))  # 返回list 取值要带上索引
 
+    boxes_file = {}
+    iou = []
     model.eval()  # 进入验证模式
     with torch.no_grad():
         # init
-        for i in index:
+        for i in range(len(test_dataset)):
             original_img, target = test_dataset[i]
+            json_name = test_dataset.json_list[i]
             # from pil image to tensor, do not normalize image
             data_transform = transforms.Compose([transforms.ToTensor()])
             img = data_transform(original_img)
@@ -110,9 +133,20 @@ def main():
             t_end = time_synchronized()
             print("inference+NMS time: {}".format(t_end - t_start))
 
+            # 将预测结果存入字典中
+            best_score = np.argmax(predictions['scores'].to('cpu'))
+            bbox = predictions['boxes'][best_score].to('cpu').numpy()
+            boxes_file[json_name] = bbox
+
             draw_img = np.array(original_img)
             my_draw_boxes(draw_img, target, isgt=True)
             my_draw_boxes(draw_img, predictions, isgt=False)
+            target_box = target['boxes'][0]
+            iou_ = compute_iou(target_box, bbox)
+            cv2.putText(draw_img, 'IOU:' + str(round(iou_,3)), [int(target_box[0]+10), int(target_box[1])+50],
+                        fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=2, color=(255,0,0), thickness=2)
+            print(iou_)
+            iou.append(iou_)
             plt.imshow(draw_img)
             plt.show()
 
@@ -120,7 +154,11 @@ def main():
             # 保存预测的图片结果
             # original_img.save("test_result.jpg")
             # plt.savefig('test_result.jpg')
-
+    print(np.mean(iou))
+    # 将预测结果写入json文件
+    boxes_json = {i: [int(k) for k in j] for i, j in boxes_file.items()}
+    with open('./data/boxes_file.json', 'w') as f:
+        json.dump(boxes_json, f)
 
 if __name__ == '__main__':
     main()

@@ -7,6 +7,8 @@ import torch
 from .coco_utils import get_coco_api_from_dataset
 from .coco_eval import CocoEvaluator
 import detec_train_utils.distributed_utils as utils
+from predict import compute_iou
+import numpy as np
 
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch,
@@ -70,6 +72,7 @@ def evaluate(model, data_loader, device):
 
     cpu_device = torch.device("cpu")
     model.eval()
+    iou = []
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = "Test: "
 
@@ -97,6 +100,14 @@ def evaluate(model, data_loader, device):
         evaluator_time = time.time() - evaluator_time
         metric_logger.update(model_time=model_time, evaluator_time=evaluator_time)
 
+        if len(outputs[0]['scores']) == 0:
+            iou.append(0)
+        else:
+            target_box = targets[0]['boxes'][0].to('cpu').numpy()
+            best_score = np.argmax(outputs[0]['scores'].to('cpu'))
+            pre_box = outputs[0]['boxes'][best_score].to('cpu').numpy()
+            iou_ = compute_iou(target_box, pre_box)
+            iou.append(iou_)
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -108,7 +119,7 @@ def evaluate(model, data_loader, device):
 
     coco_info = coco_evaluator.coco_eval[iou_types[0]].stats.tolist()  # numpy to list
 
-    return coco_info
+    return coco_info, np.mean(iou)
 
 
 def _get_iou_types(model):

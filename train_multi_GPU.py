@@ -104,7 +104,7 @@ def main(args):
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.SGD(
         params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-
+    # optimizer = torch.optim.Adam(params)
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
 
     # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_gamma)
@@ -130,6 +130,7 @@ def main(args):
     train_loss = []
     learning_rate = []
     val_map = []
+    best_iou = 0
 
     print("Start training")
     start_time = time.time()
@@ -146,7 +147,7 @@ def main(args):
         lr_scheduler.step()
 
         # evaluate after every epoch
-        coco_info = utils.evaluate(model, data_loader_test, device=device)
+        coco_info, iou = utils.evaluate(model, data_loader_test, device=device)
         val_map.append(coco_info[1])  # pascal mAP
 
         # # 只在主进程上进行写操作
@@ -171,20 +172,25 @@ def main(args):
             save_on_master(save_files,
                            os.path.join(args.output_dir, f'model_{epoch}.pth'))
 
+            if iou > best_iou:
+                save_on_master(save_files,
+                               os.path.join(args.output_dir, f'best_model.pth'))
+                best_iou = iou
+                print('IOU:    ', iou)
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
+    print('best IOU:', best_iou)
+    # if args.rank in [-1, 0]:
+    #     # plot loss and lr curve
+    #     if len(train_loss) != 0 and len(learning_rate) != 0:
+    #         from plot_curve import plot_loss_and_lr
+    #         plot_loss_and_lr(train_loss, learning_rate, 'center_crop')
 
-    if args.rank in [-1, 0]:
-        # plot loss and lr curve
-        if len(train_loss) != 0 and len(learning_rate) != 0:
-            from plot_curve import plot_loss_and_lr
-            plot_loss_and_lr(train_loss, learning_rate, 'center_crop')
-
-        # plot mAP curve
-        if len(val_map) != 0:
-            from plot_curve import plot_map
-            plot_map(val_map, 'center_crop')
+        # # plot mAP curve
+        # if len(val_map) != 0:
+        #     from plot_curve import plot_map
+        #     plot_map(val_map, 'center_crop')
 
 
 if __name__ == "__main__":
@@ -200,7 +206,7 @@ if __name__ == "__main__":
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=1, type=int, help='num_classes')
     # 每块GPU上的batch_size
-    parser.add_argument('-b', '--batch-size', default=4, type=int,
+    parser.add_argument('-b', '--batch-size', default=64, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
@@ -230,7 +236,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=50, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/detec', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/detec/data3', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     parser.add_argument('--aspect-ratio-group-factor', default=3, type=int)
