@@ -108,14 +108,24 @@ def main():
                 # plt.imshow(pre_target['mask'],cmap='gray')
                 # plt.show()
 
-                # 分指标展示'IFA', 'MNM', 'FMA', 'FPL',
-                # for metric in ['MML']:
-                #     show_one_metric(img, ground_truth, pre_target, metric, not_exist_landmark, show_img=False)
+                if len(not_exist_landmark) > 0:
+                    print(not_exist_landmark)
+                    img = np.array(original_img)
+                    for j in range(1, 5):
+                        mask_ = torch.where(pre_target['mask'] == j)
+                        img[..., 0][mask_] = j * 15
+                        img[..., 1][mask_] = j * 30 + 50
+                        img[..., 2][mask_] = j * 15
+                    plt.imshow(img)
+                    plt.show()
+                # 分指标展示
+                # for metric in ['IFA', 'MNM', 'FMA', 'PL', 'MML']:
+                #     show_one_metric(original_img, target, pre_target, metric, not_exist_landmark, show_img=True)
                 #  计算颜面的各个指标
-                pre_data = calculate_metrics(original_img, pre_target, not_exist_landmark, is_gt=False, show_img=True,
-                                             compute_MML=False)
-                gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=True,
-                                            compute_MML=False)
+                pre_data = calculate_metrics(original_img, pre_target, not_exist_landmark, is_gt=False, show_img=False,
+                                             compute_MML=True)
+                gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=False,
+                                            compute_MML=True)
 
                 for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
                     result_pre[key].append(pre_data[key])
@@ -170,6 +180,6 @@ def main():
             print('阴性 -1  gt:', result_gt[i].count(-1), '    pre: ', result_pre[i].count(-1))
             print('0  gt:', result_gt[i].count(0), '    pre: ', result_pre[i].count(0))
 
-
+    assss= 1
 if __name__ == '__main__':
     main()

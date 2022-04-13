@@ -212,6 +212,7 @@ class Resize(object):
         if height * ratio > h:
             ratio = h / height
         img = F.resize(img, [int(height * ratio), int(width * ratio)])
+        # todo 使用F.resize ,cv2.resize,mask.resize(PIL自带的),都出现了一个部位出现其他部位的边缘的情况
         mask = F.resize(mask, [int(height * ratio), int(width * ratio)])
         landmark = {i: [int(j[0] * ratio), int(j[1] * ratio)] for i, j in landmark.items()}
         # resize origin_img

@@ -204,8 +204,8 @@ def show_one_metric(rgb_img, gt, pre, metric: str, not_exist_landmark, show_img:
     landmark_pre = pre['landmark']
     mask_pre = pre['mask']
 
-    towards_right1 = towards_right(Image.fromarray(rgb_img), landmark_pre)
-    towards_right2 = towards_right(Image.fromarray(rgb_img), landmark_gt)
+    towards_right1 = towards_right(rgb_img, landmark_pre)
+    towards_right2 = towards_right(rgb_img, landmark_gt)
     assert towards_right1 == towards_right2, '定位偏差过大'
 
     upper_lip_gt = landmark_gt[8]
@@ -222,7 +222,7 @@ def show_one_metric(rgb_img, gt, pre, metric: str, not_exist_landmark, show_img:
     nasion_pre = landmark_pre[13]
     h_img = mask_gt.shape[0]
 
-    img = rgb_img.copy()
+    img = np.array(rgb_img)
     if metric == 'IFA':
         # 面——下部角 （IFA）  --->求不好187 255 255
         angle_IFA = calculate_IFA(img, mask_gt, 3, not_exist_landmark, nasion_gt, chin_gt, upper_lip_gt, under_lip_gt,
@@ -278,14 +278,12 @@ def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True, show_
 
     towards_right1 = towards_right(Image.fromarray(img), landmark)  # 标签是否其中在图像右侧
     for j in range(1, 5):
-        mask_ = np.equal(mask, j)
+        mask_ = torch.where(mask==j)
         img[..., 0][mask_] = 200
         img[..., 1][mask_] = 100
         img[..., 2][mask_] = 200
     for i in range(8, 14):
-        cv2.circle(img, landmark[i], radius=5, color=(0, 255, 0), thickness=-1)
-    # plt.imshow(img)
-    # plt.show()
+        cv2.circle(img, landmark[i], radius=2, color=(0, 255, 0), thickness=-1)
 
     upper_lip = landmark[8]
     under_lip = landmark[9]
@@ -311,7 +309,7 @@ def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True, show_
     # 颜面轮廓线（MML） & 颜面轮廓（FS）距离     -----> 完成
     if compute_MML:
         FS, MML = calculate_MML(img, mask, 4, not_exist_landmark, under_midpoint, upper_midpoint, head_point,
-                                towards_right1, color=(0, 191, 255))
+                                towards_right1, color=(155, 48, 255))
     else:
         FS, MML = -1, 0
     data = {'IFA': angle_IFA, 'MNM': angle_MNM, 'FMA': angle_FMA, 'PL': PL, 'FPL': FPL, 'FS': FS, 'MML': MML}

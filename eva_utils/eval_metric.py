@@ -1,6 +1,7 @@
 import numpy as np
 
 from eva_utils.compute_metric import *
+import torch
 
 
 def calculate_IFA(rgb_img, mask, mask_label, not_exist_landmark, nasion, chin, upper_lip, under_lip, towards_right,
@@ -57,6 +58,8 @@ def calculate_FMA(rgb_img, mask, mask_label, not_exist_landmark, upper_lip, chin
     h_img = rgb_img.shape[0]
     contours, up_contours, left_point, right_point = get_contours(mask, mask_label, h_img)
     # 得到上缘轮廓上最适合用于连线的点
+    # todo
+    # 改进
     jaw_keypoint, jaw_keypoint2 = smallest_area_point(up_contours, left_point, right_point, h_img, towards_right)
     angle_FMA, keypoint_FMA = get_angle_keypoint([chin, upper_lip], [jaw_keypoint, jaw_keypoint2], h_img)
     cv2.line(rgb_img, chin, keypoint_FMA, color=color, thickness=2)
@@ -115,7 +118,7 @@ def calculate_MML(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint,
 
 
 def show_area(img, mask, mask_label, color=(200, 100, 200)):
-    mask_ = np.equal(mask, mask_label)
+    mask_ = torch.where(mask==mask_label)
     img[..., 0][mask_] = color[0]
     img[..., 1][mask_] = color[1]
     img[..., 2][mask_] = color[2]
