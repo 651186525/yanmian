@@ -198,13 +198,13 @@ class GetROI(object):
         img = F.crop(img, top, left, height, width)
         mask = F.crop(mask, top, left, height, width)
         landmark = {i:[j[0]-left, j[1]-top] for i,j in landmark.items()}
-        return img, mask, landmark
+        return img, mask, landmark, [left, top, right, bottom]
 
 class Resize(object):
     def __init__(self, size):
         self.size = size
 
-    def __call__(self, img, mask, landmark):
+    def __call__(self, origin_img, img, mask, landmark):
         width, height = img.size
         h, w = self.size
         # 先满足w
@@ -214,4 +214,7 @@ class Resize(object):
         img = F.resize(img, [int(height * ratio), int(width * ratio)])
         mask = F.resize(mask, [int(height * ratio), int(width * ratio)])
         landmark = {i: [int(j[0] * ratio), int(j[1] * ratio)] for i, j in landmark.items()}
-        return img, mask, landmark
+        # resize origin_img
+        ow, oh= origin_img.size
+        origin_img = F.resize(origin_img, [int(oh * ratio), int(ow * ratio)])
+        return origin_img, img, mask, landmark, ratio

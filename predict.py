@@ -34,7 +34,7 @@ def main():
              12: 'chin', 13: 'nasion'}
 
     # get devices
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:6" if torch.cuda.is_available() else "cpu")
     print("using {} device.".format(device))
 
     # create model
@@ -46,7 +46,7 @@ def main():
 
     # from pil image to tensor and normalize
     data_transform = T.Compose([T.ToTensor(), T.Normalize(mean=mean, std=std)])
-    test_data = YanMianDataset(os.getcwd(), transforms=data_transform, data_type='test', pre_roi=True)
+    test_data = YanMianDataset(os.getcwd(), transforms=data_transform, data_type='test', resize=[320,320], pre_roi=True)
     # 进入验证模式
     model.eval()
 
@@ -76,8 +76,8 @@ def main():
             # model1 预测六个点
             output = model(ROI_img.to(device))
             prediction = output['out'].squeeze().to('cpu')
-            # 显示预测结果
-            img = np.array(ROI_img)
+            # 显示预测结果  --->ROI_img 为标准化的图，用于显示已经不好了
+            # img = np.array(ROI_img)
             # for point in ROI_target['landmark'].values():
             #     cv2.circle(img, point, 6, (255,0,0), -1)
             # show_predict(img, prediction, classes + 1)
@@ -91,7 +91,7 @@ def main():
             if model2:
                 output2 = model_poly_curve(ROI_img.to(device))
                 prediction2 = output2['out'].to('cpu')
-                gt_mask = torch.as_tensor(ROI_target['mask'], dtype=torch.int64).unsqueeze(0)  # unsqueeze统一格式
+                gt_mask = torch.as_tensor(ROI_target['mask'], dtype=torch.int64).unsqueeze(0)  # unsqueeze统一格式(B,C,H,W)
                 dice_target = build_target(gt_mask, 5)
                 dice = multiclass_dice_coeff(torch.nn.functional.softmax(prediction2, dim=1), dice_target)
                 dices.append(dice)
@@ -100,7 +100,7 @@ def main():
 
                 # 生成预测数据的统一格式的target{'landmark':landmark,'mask':mask}
                 pre_ROI_target, not_exist_landmark = create_predict_target(ROI_img, prediction, json_dir,
-                                                                           towards_right=towards_right, deal_pre=False)
+                                                                           towards_right=towards_right, deal_pre=True)
                 # 将ROI target 转换为原图大小
                 target = create_origin_target(ROI_target, box, original_img.size)
                 pre_target = create_origin_target(pre_ROI_target, box, original_img.size)
@@ -113,9 +113,9 @@ def main():
                 #     show_one_metric(img, ground_truth, pre_target, metric, not_exist_landmark, show_img=False)
                 #  计算颜面的各个指标
                 pre_data = calculate_metrics(original_img, pre_target, not_exist_landmark, is_gt=False, show_img=True,
-                                             compute_MML=True)
+                                             compute_MML=False)
                 gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=True,
-                                            compute_MML=True)
+                                            compute_MML=False)
 
                 for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
                     result_pre[key].append(pre_data[key])

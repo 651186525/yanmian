@@ -39,7 +39,7 @@ class YanMianDataset(Dataset):
                               for line in read.readlines() if len(line.strip()) > 0]
 
         if pre_roi:
-            roi_str = open('./data/boxes_file.json')
+            roi_str = open('./data/boxes_file2.json')
             roi_data = json.load(roi_str)
             roi_str.close()
             self.roi = roi_data
@@ -110,12 +110,13 @@ class YanMianDataset(Dataset):
             poly_curve = crop(poly_curve, top, left, height, width)
             landmark = {i: [j[0] - left, j[1] - top] for i, j in landmark.items()}
         else:
-            roi_img, poly_curve, landmark = GetROI(border_size=30)(origin_image, poly_curve, landmark)
+            roi_img, poly_curve, landmark, box = GetROI(border_size=30)(origin_image, poly_curve, landmark)
         mask = to_pil_image(poly_curve)
 
         # resize image
         if self.resize is not None:
-            roi_img, mask, landmark = Resize(self.resize)(roi_img, mask, landmark)
+            origin_image, roi_img, mask, landmark, resize_ratio = Resize(self.resize)(origin_image, roi_img, mask, landmark)
+            box = [int(i*resize_ratio) for i in box]
         # todo
         # 似乎resize后生成了其它轮廓边缘
 
@@ -129,6 +130,7 @@ class YanMianDataset(Dataset):
 
         if self.pre_roi:
             return origin_image, roi_img, roi_target, box
+
         return roi_img, roi_target
 
 

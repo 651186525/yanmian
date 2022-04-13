@@ -56,7 +56,6 @@ def create_predict_target(img, prediction, json_dir, towards_right=True, deal_pr
     # poly_curve 其实已经可以作为mask,下面对它进行闭运算,腐蚀等处理
     not_exist_landmark = []  # 统计预测不存在的点
 
-    kernel = np.ones((3, 3), dtype=np.uint8)
     landmark = {}
     for i in range(5, 11):
         temp = np.array(prediction[i])
@@ -96,7 +95,6 @@ def create_predict_target(img, prediction, json_dir, towards_right=True, deal_pr
                 continue
 
             temp[poly_curve == i] = 255
-            temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
             # temp = cv2.morphologyEx(temp, cv2.MORPH_OPEN, kernel, iterations=5)
             if i == 3:  # 去除鼻根为中心的20像素矩形外的结果
                 temp[nasion[1] + 20:, :] = 0
@@ -107,7 +105,6 @@ def create_predict_target(img, prediction, json_dir, towards_right=True, deal_pr
                 if len(tt[0]) == 0:
                     temp = np.zeros_like(mask)
                     temp[poly_curve == i] = 255
-                    temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
                 # 判断处理后，斜率是否为0，即为不正确预测
                 shift_h, shift_w = np.where(temp == 255)
                 index = shift_w < nasion[0] if towards_right else shift_w > nasion[0]
@@ -140,18 +137,17 @@ def create_predict_target(img, prediction, json_dir, towards_right=True, deal_pr
                     top_x = top_x.max()
                     temp[nasion[1]:, :] = 0  # 去除鼻根下方，右方，额骨最高点左方上方的额骨预测结果
                     temp[:, nasion[0]:] = 0
-                    temp[:, :top_x] = 0
-                    temp[:y.min(), :] = 0
+                    # temp[:, :top_x] = 0
+                    # temp[:y.min(), :] = 0
                 else:
                     top_x = top_x.min()
                     temp[nasion[1]:, :] = 0
                     temp[:, :nasion[0]] = 0
-                    temp[:, top_x:] = 0
-                    temp[:y.min(), :] = 0
+                    # temp[:, top_x:] = 0
+                    # temp[:y.min(), :] = 0
                 tt = np.where(temp == 255)
                 if len(tt[0]) == 0:
                     temp[poly_curve == i] = 255
-                    temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel, iterations=2)
             mask[temp == 255] = i
 
     # plt.imshow(mask, cmap='gray')
@@ -167,7 +163,7 @@ def create_origin_target(ROI_target, box, origin_size):
     ROI_landmark = ROI_target['landmark']
     left, top, right, bottom = box
     mask = torch.zeros((origin_size[1], origin_size[0]))
-    mask[top:bottom, left:right].copy_(ROI_mask)
+    mask[top:ROI_mask.shape[0]+top, left:ROI_mask.shape[1]+left].copy_(ROI_mask)
     landmark = {i:[j[0]+left, j[1]+top] for i,j in ROI_landmark.items()}
     target = {'mask':mask,'landmark':landmark}
     return target

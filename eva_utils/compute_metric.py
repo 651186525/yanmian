@@ -37,6 +37,13 @@ def get_angle_keypoint(line1, line2, h_img):
     """
     angle1,k1,b1 = get_angle_k_b(line1[0], line1[1], h_img)
     angle2,k2,b2 = get_angle_k_b(line2[0], line2[1], h_img)
+    if k1 == k2:
+        for i in line1:
+            for j in line2:
+                if i==j:
+                    keypoint = i
+        return 0, keypoint
+
     # 求交点
     if angle1 == 90:
         keypoint_x = line1[0][0]
