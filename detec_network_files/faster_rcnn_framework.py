@@ -252,6 +252,7 @@ class FasterRCNN(FasterRCNNBase):
                  rpn_anchor_generator=None, rpn_head=None,
                  rpn_pre_nms_top_n_train=400, rpn_pre_nms_top_n_test=200,    # rpn中在nms处理前保留的proposal数(根据score)
                  rpn_post_nms_top_n_train=400, rpn_post_nms_top_n_test=200,  # rpn中在nms处理后保留的proposal数
+                 # nms前后设置一样的值，对单层的预测特征网络没用，但是对FPN有用
                  rpn_nms_thresh=0.7,  # rpn中进行nms处理时使用的iou阈值
                  rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,  # rpn计算损失时，采集正负样本设置的阈值
                  rpn_batch_size_per_image=64, rpn_positive_fraction=0.5,  # rpn计算损失时采样的样本数，以及正样本占总样本的比例
@@ -286,6 +287,8 @@ class FasterRCNN(FasterRCNNBase):
         out_channels = backbone.out_channels
 
         # 若anchor生成器为空，则自动生成针对resnet50_fpn的anchor生成器
+        # 使用FPN，一个anchor_size对应一个预测特征层--> 即预测特征图上的每个点只对应aspect_ratio个分类值，aspect_ratio*4个定位值
+        # anchor_size,一个括号里对应一层，若要一层对应多个size，则((32,64,126),)->未使用FPN的写法
         if rpn_anchor_generator is None:
             anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
             aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
@@ -296,6 +299,8 @@ class FasterRCNN(FasterRCNNBase):
         # 生成RPN通过滑动窗口预测网络部分
         if rpn_head is None:
             rpn_head = RPNHead(
+                # 使用FPN，一个anchor_size对应一个预测特征层-->
+                # 即预测特征图上的每个点只对应aspect_ratio个分类值，aspect_ratio*4个定位值
                 out_channels, rpn_anchor_generator.num_anchors_per_location()[0]
             )
 

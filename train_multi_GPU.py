@@ -10,7 +10,7 @@ from detec_backbone import resnet50_fpn_backbone
 from detec_network_files import FasterRCNN, FastRCNNPredictor
 import detec_train_utils.train_eval_utils as utils
 from detec_train_utils import GroupedBatchSampler, create_aspect_ratio_groups, init_distributed_mode, save_on_master, mkdir
-
+from detec_network_files.rpn_function import AnchorsGenerator
 
 def create_model(num_classes):
     # 如果显存很小，建议使用默认的FrozenBatchNorm2d
@@ -19,6 +19,7 @@ def create_model(num_classes):
     backbone = resnet50_fpn_backbone(norm_layer=torch.nn.BatchNorm2d,
                                      trainable_layers=3)
     # 训练自己数据集时不要修改这里的91，修改的是传入的num_classes参数
+    # 因为用了预训练模型，得与预训练模型一致，后面再用自己的num_classes替换
     model = FasterRCNN(backbone=backbone, num_classes=91, min_size=320, max_size=320)
     # 载入预训练模型权重
     # https://download.pytorch.org/models/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth
@@ -30,7 +31,7 @@ def create_model(num_classes):
 
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
-    # replace the pre-trained head with a new one
+    # replace the pre-trained head with a new one ---->替换ROI head中的box_predictor
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
 
     return model
@@ -212,7 +213,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=50, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/detec/data3', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/detec/data4', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     parser.add_argument('--aspect-ratio-group-factor', default=3, type=int)

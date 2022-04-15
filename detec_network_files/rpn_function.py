@@ -92,6 +92,9 @@ class AnchorsGenerator(nn.Module):
 
     def set_cell_anchors(self, dtype, device):
         # type: (torch.dtype, torch.device) -> None
+        '''
+        对每个size的aspect_ratio生成偏移
+        '''
         if self.cell_anchors is not None:
             cell_anchors = self.cell_anchors
             assert cell_anchors is not None
@@ -128,6 +131,10 @@ class AnchorsGenerator(nn.Module):
         assert cell_anchors is not None
 
         # 遍历每个预测特征层的grid_size，strides和cell_anchors
+        # todo, 为什么是一个预测特征层（即一个grid或strides（对应关系），对应一个cell_anchors（即一个anchor的size）
+        # ---->是不是使用FPN，一个预测特征层上只使用一种anchor的size，如在此处-->浅层（特征图大）的预测特征层对应小尺寸的anchor size
+        # 大特征图，小anchor尺寸--->对应原图的小尺寸，且密（因为大特征图点数多）、、、小特征图，大anchor尺寸--->对应原图的大尺寸分割，且稀疏
+        # 即，anchor size还是决定了proposal的大小，预测特征图的大小决定了位置
         for size, stride, base_anchors in zip(grid_sizes, strides, cell_anchors):
             grid_height, grid_width = size
             stride_height, stride_width = stride
@@ -406,8 +413,9 @@ class RegionProposalNetwork(torch.nn.Module):
             else:
                 # 计算anchors与真实bbox的iou信息
                 # set to self.box_similarity when https://github.com/pytorch/pytorch/issues/27495 lands
+                # todo 没搞懂这里如何求的IOU？？？？
                 match_quality_matrix = box_ops.box_iou(gt_boxes, anchors_per_image)
-                # 计算每个anchors与gt匹配iou最大的索引（如果iou<0.3索引置为-1，0.3<iou<0.7索引为-2）
+                # 计算每个anchors与gt匹配iou最大的索引（如果iou<0.3索引置为-1，0.3<iou<0.7索引为-2, >0.7为0）
                 matched_idxs = self.proposal_matcher(match_quality_matrix)
                 # get the targets corresponding GT for each proposal
                 # NB: need to clamp the indices because we can have a single
@@ -432,6 +440,7 @@ class RegionProposalNetwork(torch.nn.Module):
                 inds_to_discard = matched_idxs == self.proposal_matcher.BETWEEN_THRESHOLDS  # -2
                 labels_per_image[inds_to_discard] = -1.0
 
+            # 感觉 labels_per_image和matched_idxs 是同一个东西，不明白为什么要多操作一次
             labels.append(labels_per_image)
             matched_gt_boxes.append(matched_gt_boxes_per_image)
         return labels, matched_gt_boxes
@@ -449,7 +458,7 @@ class RegionProposalNetwork(torch.nn.Module):
         r = []  # 记录每个预测特征层上预测目标概率前pre_nms_top_n的索引信息
         offset = 0
         # 遍历每个预测特征层上的预测目标概率信息
-        for ob in objectness.split(num_anchors_per_level, 1):
+        for ob in objectness.split(num_anchors_per_level, dim = 1):
             if torchvision._is_tracing():
                 num_anchors, pre_nms_top_n = _onnx_get_num_anchors_and_pre_nms_top_n(ob, self.pre_nms_top_n())
             else:
@@ -604,7 +613,7 @@ class RegionProposalNetwork(torch.nn.Module):
         features = list(features.values())
 
         # 计算每个预测特征层上的预测目标概率和bboxes regression参数
-        # objectness和pred_bbox_deltas都是list
+        # objectness和pred_bbox_deltas都是list----> B * C * H *W
         objectness, pred_bbox_deltas = self.head(features)
 
         # 生成一个batch图像的所有anchors信息,list(tensor)元素个数等于batch_size
@@ -614,7 +623,7 @@ class RegionProposalNetwork(torch.nn.Module):
         num_images = len(anchors)
 
         # numel() Returns the total number of elements in the input tensor.
-        # 计算每个预测特征层上的对应的anchors数量
+        # 计算每个预测特征层上的对应的anchors数量  objectness: B * C * H *W
         num_anchors_per_level_shape_tensors = [o[0].shape for o in objectness]
         num_anchors_per_level = [s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors]
 
