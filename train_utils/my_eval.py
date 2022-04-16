@@ -163,8 +163,7 @@ def area_under_contours(contours, left_point, right_point, point, h_img):
                 area += distance
             else:
                 area += abs(distance) * 1 / 3
-    # todo 优化
-    # 轮廓上的面积取2/3试试看效果
+    # todo 优化 轮廓上的面积取2/3试试看效果
     return area
 
 def smallest_area_point(contours, left_point, right_point, h_img, towards_right):

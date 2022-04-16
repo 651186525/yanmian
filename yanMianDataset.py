@@ -81,25 +81,26 @@ class YanMianDataset(Dataset):
         self.towards_right = towards_right(origin_image, landmark)
         poly_points = json_data['Polys'][0]['Shapes']
         # get polygon mask
-        mask_path = os.path.join(mask_root, json_dir.split('/')[-1].split('.')[0] + '_mask.jpg')
+        mask_path = os.path.join(mask_root, json_dir.split('/')[-1].split('.')[0] + '_mask_255.jpg')
         # !!!!!!!!! np会改变Image的通道排列顺序，Image，为cwh，np为hwc，一般为chw（cv等等） cv:hwc
         mask_img = Image.open(mask_path)   # Image： c, w, h
         mask_array = np.array(mask_img)   # np 会将shape变为 h, w, c
 
         # check data
         check_data(curve, landmark, poly_points, json_dir, self.data_type)
-
-        # 生成poly_curve 图
+        # 生成poly_curve 图-->cv2无法使用tensor
         poly_curve = np.zeros_like(mask_array)
-        for i in range(4):
-            if i==0 or i==1:  # 两个区域
-                poly_curve[mask_array==i+4] = i+1
-            elif i==2 or i==3:  # 两条直线
-                points = curve[i-3]['Points']
-                label = curve[i-3]['Label']
-                points_array = np.array(points, dtype=np.int32)[:, :2]
-                for j in range(len(points_array) - 1):
-                    cv2.line(poly_curve, points_array[j], points_array[j + 1], color=label-3, thickness=6)
+        for i in range(197, 210):  # 上颌骨区域
+            poly_curve[mask_array==i] = 1
+        for i in range(250, 256):   # 下颌骨区域
+            poly_curve[mask_array == i] = 2
+        for i in range(2):
+            points = curve[i]['Points']
+            label = curve[i]['Label']
+            points_array = np.array(points, dtype=np.int32)[:, :2]
+            for j in range(len(points_array) - 1):
+                cv2.line(poly_curve, points_array[j], points_array[j + 1], color=label-3, thickness=3)
+        # as_tensor共享内存，tensor()则复制一份
         poly_curve = torch.as_tensor(poly_curve)
         # 得到标注的ROI区域图像
         if self.pre_roi:
@@ -111,14 +112,11 @@ class YanMianDataset(Dataset):
             landmark = {i: [j[0] - left, j[1] - top] for i, j in landmark.items()}
         else:
             roi_img, poly_curve, landmark, box = GetROI(border_size=30)(origin_image, poly_curve, landmark)
-        mask = to_pil_image(poly_curve)
 
         # resize image
         if self.resize is not None:
-            origin_image, roi_img, mask, landmark, resize_ratio = Resize(self.resize)(origin_image, roi_img, mask, landmark)
+            origin_image, roi_img, mask, landmark, resize_ratio = Resize(self.resize)(origin_image, roi_img, poly_curve, landmark)
             box = [int(i*resize_ratio) for i in box]
-        # todo
-        # 似乎resize后生成了其它轮廓边缘
 
         # Image，和tensor通道组织方式不一样，但是还可以使用同一个transform是因为它内部根据类型做了处理
         if self.transforms is not None:

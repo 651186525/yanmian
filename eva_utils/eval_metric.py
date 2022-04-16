@@ -58,8 +58,7 @@ def calculate_FMA(rgb_img, mask, mask_label, not_exist_landmark, upper_lip, chin
     h_img = rgb_img.shape[0]
     contours, up_contours, left_point, right_point = get_contours(mask, mask_label, h_img)
     # 得到上缘轮廓上最适合用于连线的点
-    # todo
-    # 改进
+    # todo 改进
     jaw_keypoint, jaw_keypoint2 = smallest_area_point(up_contours, left_point, right_point, h_img, towards_right)
     angle_FMA, keypoint_FMA = get_angle_keypoint([chin, upper_lip], [jaw_keypoint, jaw_keypoint2], h_img)
     cv2.line(rgb_img, chin, keypoint_FMA, color=color, thickness=2)

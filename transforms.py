@@ -211,11 +211,17 @@ class Resize(object):
         ratio = w / width
         if height * ratio > h:
             ratio = h / height
-        img = F.resize(img, [int(height * ratio), int(width * ratio)])
-        # todo 使用F.resize ,cv2.resize,mask.resize(PIL自带的),都出现了一个部位出现其他部位的边缘的情况
-        mask = F.resize(mask, [int(height * ratio), int(width * ratio)])
-        landmark = {i: [int(j[0] * ratio), int(j[1] * ratio)] for i, j in landmark.items()}
         # resize origin_img
-        ow, oh= origin_img.size
+        ow, oh = origin_img.size
         origin_img = F.resize(origin_img, [int(oh * ratio), int(ow * ratio)])
+        # resize ROI_img和mask
+        img = F.resize(img, [int(height * ratio), int(width * ratio)])
+        # todo 使用F.resize ,cv2.resize,mask.resize(PIL自带的),都出现了一个部位出现其他部位的边缘的情况---》
+        # 因为他们默认使用了bilinear插值
+        mask = torch.nn.functional.interpolate(
+            mask[None][None], scale_factor=ratio, mode="nearest", recompute_scale_factor=True)[0][0]
+        # mask = F.resize(mask, [int(height * ratio), int(width * ratio)])
+        landmark = {i: [int(j[0] * ratio), int(j[1] * ratio)] for i, j in landmark.items()}
+        mask = F.to_pil_image(mask)
+
         return origin_img, img, mask, landmark, ratio
