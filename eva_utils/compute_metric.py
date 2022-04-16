@@ -230,91 +230,32 @@ def smallest_area_point(contours, left_point, right_point, h_img, towards_right)
 def get_nasion_vertical_line(mask, mask_label, nasion, h_img, towards_right: bool=False):
     temp_mask = np.zeros_like(mask)
     temp_mask[mask == mask_label] = 255
-    # 闭运算处理缺陷，腐蚀使曲线变细，更好处理
-    kernel = np.ones((3, 3), dtype=np.uint8)
-    temp_mask = temp_mask.astype(np.uint8)
-    # temp_mask = cv2.morphologyEx(temp_mask, cv2.MORPH_CLOSE, kernel, iterations=2)  # 闭运算处理缺陷
-    # temp_mask = cv2.erode(temp_mask, kernel, iterations=2)  # 腐蚀两次减小大小
     shift_h, shift_w = np.where(temp_mask == 255)
-    # 方案1
-    # 拟合曲线后求导，效果不佳
-    # zz = np.polyfit(shift_w, shift_h, 3)   # 使用三阶多项式拟合
-    # pp = np.poly1d(zz)   #  转换为多项式
-    #
-    # # 求导
-    # error = 0.5
-    # keypoint_IFA = [0, 0]
-    # k_IFA = 1
-    # for x, y in zip(shift_w, shift_h):
-    #     epsilon = 1e-10
-    #     daoshu = (pp(x + epsilon) - pp(x)) / epsilon
-    #     _, k_temp_IFA, _ = get_angle_k_b([x, y], nasion, h_img)
-    #     if abs(k_temp_IFA - daoshu) < error:
-    #         keypoint_IFA = [x, y]
-    #         k_IFA = k_temp_IFA
-    # tttt = [keypoint_IFA[0] - 50, int(keypoint_IFA[1] + k_IFA * 50)]
-    # cv2.line(rgb_img, tttt, nasion, color=(255, 0, 0), thickness=2)
-    # plt.imshow(rgb_img)
-    # plt.show()
 
-    # # 方案2，取nasion左右各 5 个像素的所有值平均
-    # left_IFA, right_IFA = nasion[0]-3, nasion[0]+3
-    # y_left = []
-    # y_right = []
-    # for x,y in zip(shift_w, shift_h):
-    #     if x>=(nasion[0]-5) and x<nasion[0]:
-    #         y_left.append(y)
-    #     elif x>nasion[0] and x<=(nasion[0]+5):
-    #         y_right.append(y)
-    #
-    # if towards_right:
-    #     if 3 < (len(y_left) - len(y_right)) < 5:
-    #         y_left = []
-    #         for x,y in zip(shift_w, shift_h):
-    #             if x >= (nasion[0] - 4) and x < nasion[0]:
-    #                 y_left.append(y)
-    #     elif (len(y_left) - len(y_right)) >= 5:
-    #         y_left = []
-    #         for x, y in zip(shift_w, shift_h):
-    #             if x >= (nasion[0] - 3) and x < nasion[0]:
-    #                 y_left.append(y)
-    # elif not towards_right:
-    #     if 3<(len(y_right)-len(y_left))<5:
-    #         y_right = []
-    #         for x,y in zip(shift_w, shift_h):
-    #             if x>nasion[0] and x<=(nasion[0]+4):
-    #                 y_right.append(y)
-    #     elif (len(y_right)-len(y_left))>=5:
-    #         y_right = []
-    #         for x,y in zip(shift_w, shift_h):
-    #             if x>nasion[0] and x<=(nasion[0]+4):
-    #                 y_right.append(y)
-    #
-    # left_IFA_y = sum(y_left)/len(y_left)
-    # right_IFA_y = sum(y_right)/len(y_right)
-    # _,k,_ = get_angle_k_b([left_IFA, left_IFA_y],[right_IFA,right_IFA_y],h_img)
-    # point1 = [left_IFA-20, int(k*20+left_IFA_y)]
-    # point2 = [right_IFA+20, int(-k*20+right_IFA_y)]
-    #
-    # keypoint = [nasion[0]+10, int(nasion[1] + 1/k*10)]
-    # return -1/k, point1, point2, keypoint
-
-    # 方案3
     # 去除鼻根右边（朝右）或左边多余的点
     index = shift_w<nasion[0] if towards_right else shift_w>nasion[0]
     if any(index):
         shift_h = shift_h[index]
         shift_w = shift_w[index]
-    mean_point = [int(np.mean(shift_w)), int(np.mean(shift_h))]
-    _,k,_ = get_angle_k_b(mean_point, nasion, h_img)
-    point1 = [nasion[0]-20, int(k*20+nasion[1])]
-    point2 = [nasion[0]+20, int(-k*20+nasion[1])]
+    poly_fit = np.polyfit(shift_w, shift_h, 1)  # 用1次多项式拟合
+    curve_function = np.poly1d(poly_fit)
+    # 方案1 ：计算拟合曲线的平均点
+    # mean_point = [np.mean(shift_w), curve_function(np.mean(shift_w))]
+    # _, k, _ = get_angle_k_b(nasion, mean_point, h_img)
+
+    # 方案2，计算拟合曲线斜率，然后将拟合曲线平移到鼻根处，然后作图
+    # 计算拟合函数的斜率, 并求得当前斜率，同时过鼻根点的偏移b
+    temp_point1 = curve_function(nasion[0]+10)
+    temp_point2 = curve_function(nasion[0]-10)
+    _, k, _ = get_angle_k_b([nasion[0]+10, temp_point1], [nasion[0]-10,temp_point2], h_img)
+    b = (h_img-nasion[1]) - k*nasion[0]
+    mean_point = [np.mean(shift_w), h_img-(k*np.mean(shift_w)+b)]
 
     keypoint = [nasion[0]+10, int(nasion[1] + 1/k*10)]
-    return -1/k, point1, point2, keypoint
+    return -1/k, nasion, [int(mean_point[0]), int(mean_point[1])], keypoint
 
 
-def get_contours(mask, mask_label, h_img):
+def get_contours(mask, mask_label, h_img, ori_method=True):
     binary = np.zeros_like(mask)
     binary[mask == mask_label] = 255  # 边缘检测需要二值图像
     # cv2.CHAIN_APPROX_NONE   cv2.CHAIN_APPROX_SIMPLE
@@ -327,7 +268,17 @@ def get_contours(mask, mask_label, h_img):
         if len(i) > len(temp):
             temp = i
     contours = temp
-    # 处理掉下缘轮廓
-    up_contours, left_point, right_point = remove_under_contours(contours, h_img)
-    return contours, up_contours, left_point, right_point
+    if ori_method:
+        # 处理掉下缘轮廓
+        up_contours, left_point, right_point = remove_under_contours(contours, h_img)
+        return contours, up_contours, left_point, right_point
+    else:
+        # 方法二，找外界矩形
+        rect = cv2.minAreaRect(contours)
+        box = cv2.boxPoints(rect)
+        box = [[int(i[0]), int(i[1])] for i in box]
+        box = sorted(box, key=lambda x:x[1])
+        keypoint1 = box[0]
+        keypoint2 = box[2] if abs(box[0][0]-box[1][0]) < abs(box[0][0]-box[2][0]) else box[1]
+        return keypoint1, keypoint2
 

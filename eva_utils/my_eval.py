@@ -226,10 +226,10 @@ def show_one_metric(rgb_img, gt, pre, metric: str, not_exist_landmark, show_img:
     if metric == 'IFA':
         # 面——下部角 （IFA）  --->求不好187 255 255
         angle_IFA = calculate_IFA(img, mask_gt, 3, not_exist_landmark, nasion_gt, chin_gt, upper_lip_gt, under_lip_gt,
-                                  towards_right1, color=(255, 0, 0), color_point=(255, 0, 0))
-        angle_IFA = calculate_IFA(img, mask_pre, 3, not_exist_landmark, nasion_pre, chin_pre, upper_lip_pre,
-                                  under_lip_pre, towards_right2, color=(205, 205, 0), color_point=(205, 205, 0),
-                                  color_area=(187, 255, 255))
+                                  towards_right1, color=(255, 0, 0), color_point=(0, 255, 0))
+        # angle_IFA = calculate_IFA(img, mask_pre, 3, not_exist_landmark, nasion_pre, chin_pre, upper_lip_pre,
+        #                           under_lip_pre, towards_right2, color=(205, 205, 0), color_point=(205, 205, 0),
+        #                           color_area=(187, 255, 255))
     elif metric == 'MNM':
         # 上颌 10 -鼻根 13 -下颌 11角（MNM角）   ----> 完成
         angle_MNM = calculate_MNM(img, not_exist_landmark, nasion_gt, upper_midpoint_gt, under_midpoint_gt,

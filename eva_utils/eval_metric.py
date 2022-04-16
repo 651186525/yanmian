@@ -10,7 +10,7 @@ def calculate_IFA(rgb_img, mask, mask_label, not_exist_landmark, nasion, chin, u
         return -1
     show_area(rgb_img, mask, mask_label, color=color_area)
     for i in [nasion, chin, upper_lip, under_lip]:
-        cv2.circle(rgb_img, i, 6, color, -1)
+        cv2.circle(rgb_img, i, 3, color, -1)
     h_img = rgb_img.shape[0]
     # 求鼻根下缘切线的垂线斜率，p1，p2用于确定鼻根下缘切线，keypoint_IFA用于确定垂线
     nasion_vertical_k, p1, p2, keypoint_IFA = get_nasion_vertical_line(mask, mask_label, nasion, h_img, towards_right)
@@ -39,7 +39,7 @@ def calculate_MNM(rgb_img, not_exist_landmark, nasion, upper_midpoint, under_mid
     if any([i == j for i in [10, 11, 13] for j in not_exist_landmark]):
         return -1
     for i in [nasion, nasion, upper_midpoint, under_midpoint]:
-        cv2.circle(rgb_img, i, 6, color_point, -1)
+        cv2.circle(rgb_img, i, 3, color_point, -1)
     h_img = rgb_img.shape[0]
     angle_MNM, point_MNM = get_angle_keypoint([upper_midpoint, nasion], [under_midpoint, nasion], h_img)
     cv2.line(rgb_img, upper_midpoint, nasion, color=color, thickness=2)
@@ -54,12 +54,13 @@ def calculate_FMA(rgb_img, mask, mask_label, not_exist_landmark, upper_lip, chin
         return -1
     show_area(rgb_img, mask, mask_label, color=color_area)
     for i in [chin, upper_lip]:
-        cv2.circle(rgb_img, i, 6, color_point, -1)
+        cv2.circle(rgb_img, i, 3, color_point, -1)
     h_img = rgb_img.shape[0]
-    contours, up_contours, left_point, right_point = get_contours(mask, mask_label, h_img)
-    # 得到上缘轮廓上最适合用于连线的点
-    # todo 改进
-    jaw_keypoint, jaw_keypoint2 = smallest_area_point(up_contours, left_point, right_point, h_img, towards_right)
+    # contours, up_contours, left_point, right_point = get_contours(mask, mask_label, h_img, ori_method=True)
+    # # 得到上缘轮廓上最适合用于连线的点
+    # jaw_keypoint, jaw_keypoint2 = smallest_area_point(up_contours, left_point, right_point, h_img, towards_right)
+    # todo 优化，使用求最小外接矩形的方法，仍有瑕疵(外接矩阵并不是想要的矩阵）
+    jaw_keypoint, jaw_keypoint2 = get_contours(mask, mask_label, h_img, ori_method=False)
     angle_FMA, keypoint_FMA = get_angle_keypoint([chin, upper_lip], [jaw_keypoint, jaw_keypoint2], h_img)
     cv2.line(rgb_img, chin, keypoint_FMA, color=color, thickness=2)
     cv2.line(rgb_img, jaw_keypoint2, keypoint_FMA, color=color, thickness=2)
@@ -74,7 +75,7 @@ def calculate_PL(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint, 
         return -1, 'not', [0,0]
     show_area(rgb_img, mask, mask_label, color=color_area)
     for i in [under_midpoint, nasion]:
-        cv2.circle(rgb_img, i, 6, color_point, -1)
+        cv2.circle(rgb_img, i, 3, color_point, -1)
     h_img = rgb_img.shape[0]
     # 画曲线：cv2.line(lineType=cv2.LINE_AA)
     big_distance, big_head_point, big_line_point = get_biggest_distance(mask, mask_label, [nasion, under_midpoint],
@@ -96,7 +97,7 @@ def calculate_MML(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint,
         return -1, 'not'
     show_area(rgb_img, mask, mask_label, color=color_area)
     for i in [under_midpoint, upper_midpoint]:
-        cv2.circle(rgb_img, i, 6, color_point, -1)
+        cv2.circle(rgb_img, i, 3, color_point, -1)
     h_img = rgb_img.shape[0]
     # 求得上下颌骨连线到PL求得最大距离的额骨对应点之间的距离
     distance, line_keypoint = get_distance([under_midpoint, upper_midpoint], big_head_point, h_img)
