@@ -118,18 +118,18 @@ def main():
                         img[..., 2][mask_] = j * 15
                     plt.imshow(img)
                     plt.show()
-                # 分指标展示
-                # for metric in ['IFA', 'MNM', 'FMA', 'PL', 'MML']:
-                #     show_one_metric(original_img, target, pre_target, metric, not_exist_landmark, show_img=True)
+                # 分指标展示'IFA', 'MNM', 'FMA', 'PL', 'MML'
+                for metric in ['IFA', 'MNM', 'FMA', 'PL', 'MML']:
+                    show_one_metric(original_img, target, pre_target, metric, not_exist_landmark, show_img=True)
                 #  计算颜面的各个指标
-                pre_data = calculate_metrics(original_img, pre_target, not_exist_landmark, is_gt=False, show_img=False,
-                                             compute_MML=True)
-                gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=False,
-                                            compute_MML=True)
-
-                for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
-                    result_pre[key].append(pre_data[key])
-                    result_gt[key].append(gt_data[key])
+                # pre_data = calculate_metrics(original_img, pre_target, not_exist_landmark, is_gt=False, show_img=True,
+                #                              compute_MML=True)
+                # gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=True,
+                #                             compute_MML=True)
+                #
+                # for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
+                #     result_pre[key].append(pre_data[key])
+                #     result_gt[key].append(gt_data[key])
 
     # 评估 mse误差   var100_mse_Rightcrop最佳
     for i in range(8, 14):

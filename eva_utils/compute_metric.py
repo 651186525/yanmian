@@ -65,6 +65,7 @@ def get_angle_keypoint(line1, line2, h_img):
 def get_distance(line, point, h_img):
     """
     求point 到直线的距离
+    line []: line为两个点组成的直线
     h_img 用于转换坐标系，图像坐标系原点位于左上，需转换到左下进行计算
     """
     angle, k, b = get_angle_k_b(line[0], line[1], h_img)
@@ -255,7 +256,7 @@ def get_nasion_vertical_line(mask, mask_label, nasion, h_img, towards_right: boo
     return -1/k, nasion, [int(mean_point[0]), int(mean_point[1])], keypoint
 
 
-def get_contours(mask, mask_label, h_img, ori_method=True):
+def get_contours(mask, mask_label, h_img, towards_right=True):
     binary = np.zeros_like(mask)
     binary[mask == mask_label] = 255  # 边缘检测需要二值图像
     # cv2.CHAIN_APPROX_NONE   cv2.CHAIN_APPROX_SIMPLE
@@ -268,17 +269,52 @@ def get_contours(mask, mask_label, h_img, ori_method=True):
         if len(i) > len(temp):
             temp = i
     contours = temp
-    if ori_method:
-        # 处理掉下缘轮廓
-        up_contours, left_point, right_point = remove_under_contours(contours, h_img)
-        return contours, up_contours, left_point, right_point
-    else:
-        # 方法二，找外界矩形
-        rect = cv2.minAreaRect(contours)
-        box = cv2.boxPoints(rect)
-        box = [[int(i[0]), int(i[1])] for i in box]
-        box = sorted(box, key=lambda x:x[1])
-        keypoint1 = box[0]
-        keypoint2 = box[2] if abs(box[0][0]-box[1][0]) < abs(box[0][0]-box[2][0]) else box[1]
-        return keypoint1, keypoint2
+
+    # method 1
+    up_contours, left_point, right_point = remove_under_contours(contours, h_img)   # 处理掉下缘轮廓
+    # 得到上缘轮廓上最适合用于连线的点
+    m1_keypoint1, m1_keypoint2 = smallest_area_point(up_contours, left_point, right_point, h_img, towards_right)
+
+    # method 2  找外界矩形
+    rect = cv2.minAreaRect(contours)
+    box = cv2.boxPoints(rect)
+    box = [[int(i[0]), int(i[1])] for i in box]
+    box = sorted(box, key=lambda x:x[1])
+    m2_keypoint1 = box[0]
+    m2_keypoint2 = box[2] if abs(box[0][0]-box[1][0]) < abs(box[0][0]-box[2][0]) else box[1]
+
+    # # method 3 得到上边缘从左到右中间1/3 距离的线段
+    # shift_w, shift_h = [], []
+    # l_p = (right_point[0]-left_point[0]) / 3 + left_point[0]
+    # r_p = (right_point[0] - left_point[0]) / 3 * 2 + left_point[0]
+    # for x, y in up_contours:
+    #     if x>l_p and x < r_p:
+    #         shift_h.append(y)
+    #         shift_w.append(x)
+    # poly_fit = np.polyfit(shift_w, shift_h, 1)  # 用1次多项式拟合
+    # curve_function = np.poly1d(poly_fit)
+    # ppp1 = [l_p, curve_function(l_p)]
+    # ppp2 = [r_p, curve_function(r_p)]
+    #
+    # # 使用求得的最适合连线的点优化轮廓, 去除下缘过于突出的点
+    # temp_contour = contours.reshape(contours.shape[0], -1)
+    # contours_2 = []
+    # distances = []
+    # for i in temp_contour:
+    #     distance = abs(get_distance([ppp1, ppp2], i, h_img)[0])
+    #     distances.append(distance)
+    # max_distance = max(distances)
+    # for i, distance in zip(temp_contour, distances):
+    #     if distance < max_distance * 1/10:
+    #         contours_2.append(i)
+    # print('distance:', max(distances))
+    # contours = np.array(contours_2).reshape(len(contours_2), 1, -1)
+    # rect = cv2.minAreaRect(contours)
+    # box = cv2.boxPoints(rect)
+    # box = [[int(i[0]), int(i[1])] for i in box]
+    # box = sorted(box, key=lambda x:x[1])
+    # m3_keypoint1 = box[0]
+    # m3_keypoint2 = box[2] if abs(box[0][0]-box[1][0]) < abs(box[0][0]-box[2][0]) else box[1]
+
+    return m2_keypoint1, m2_keypoint2
 

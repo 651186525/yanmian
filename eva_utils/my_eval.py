@@ -6,6 +6,7 @@ import torch
 from eva_utils.eval_metric import *
 from yanMianDataset import towards_right
 
+
 def get_ground_truth(json_dir, mask_root):
     target = {}
     # load json data
@@ -158,14 +159,15 @@ def create_predict_target(img, prediction, json_dir, towards_right=True, deal_pr
         not_exist_landmark.append(json_dir)
     return target, not_exist_landmark
 
+
 def create_origin_target(ROI_target, box, origin_size):
-    ROI_mask = torch.tensor(ROI_target['mask'])
+    ROI_mask = torch.as_tensor(ROI_target['mask'])
     ROI_landmark = ROI_target['landmark']
     left, top, right, bottom = box
     mask = torch.zeros((origin_size[1], origin_size[0]))
-    mask[top:ROI_mask.shape[0]+top, left:ROI_mask.shape[1]+left].copy_(ROI_mask)
-    landmark = {i:[j[0]+left, j[1]+top] for i,j in ROI_landmark.items()}
-    target = {'mask':mask,'landmark':landmark}
+    mask[top:ROI_mask.shape[0] + top, left:ROI_mask.shape[1] + left].copy_(ROI_mask)
+    landmark = {i: [j[0] + left, j[1] + top] for i, j in ROI_landmark.items()}
+    target = {'mask': mask, 'landmark': landmark}
     return target
 
 
@@ -225,49 +227,51 @@ def show_one_metric(rgb_img, gt, pre, metric: str, not_exist_landmark, show_img:
     img = np.array(rgb_img)
     if metric == 'IFA':
         # 面——下部角 （IFA）  --->求不好187 255 255
-        angle_IFA = calculate_IFA(img, mask_gt, 3, not_exist_landmark, nasion_gt, chin_gt, upper_lip_gt, under_lip_gt,
-                                  towards_right1, color=(255, 0, 0), color_point=(0, 255, 0))
-        # angle_IFA = calculate_IFA(img, mask_pre, 3, not_exist_landmark, nasion_pre, chin_pre, upper_lip_pre,
-        #                           under_lip_pre, towards_right2, color=(205, 205, 0), color_point=(205, 205, 0),
-        #                           color_area=(187, 255, 255))
+        data_gt = calculate_IFA(img, mask_gt, 3, not_exist_landmark, nasion_gt, chin_gt, upper_lip_gt, under_lip_gt,
+                                towards_right1, color=(255, 0, 0), color_point=(0, 255, 0), color_area=(255, 0, 0))
+        data_pre = calculate_IFA(img, mask_pre, 3, not_exist_landmark, nasion_pre, chin_pre, upper_lip_pre,
+                                 under_lip_pre, towards_right2, color=(205, 205, 0), color_point=(205, 205, 0),
+                                 color_area=(205, 205, 0))
     elif metric == 'MNM':
         # 上颌 10 -鼻根 13 -下颌 11角（MNM角）   ----> 完成
-        angle_MNM = calculate_MNM(img, not_exist_landmark, nasion_gt, upper_midpoint_gt, under_midpoint_gt,
-                                  color=(255, 0, 0), color_point=(255, 0, 0))
-        angle_MNM = calculate_MNM(img, not_exist_landmark, nasion_pre, upper_midpoint_pre, under_midpoint_pre,
-                                  color=(205, 205, 0), color_point=(205, 205, 0))
+        data_gt = calculate_MNM(img, not_exist_landmark, nasion_gt, upper_midpoint_gt, under_midpoint_gt,
+                                color=(255, 0, 0), color_point=(255, 0, 0))
+        data_pre = calculate_MNM(img, not_exist_landmark, nasion_pre, upper_midpoint_pre, under_midpoint_pre,
+                                 color=(205, 205, 0), color_point=(205, 205, 0))
     elif metric == 'FMA':
         # 面——上颌角（FMA）    -----> 基本完成
-        angle_FMA = calculate_FMA(img, mask_gt, 1, not_exist_landmark, upper_lip_gt, chin_gt, towards_right1,
-                                  color=(255, 0, 0), color_point=(255, 0, 0))
-        angle_FMA = calculate_FMA(img, mask_pre, 1, not_exist_landmark, upper_lip_pre, chin_pre, towards_right2,
-                                  color=(205, 205, 0), color_point=(205, 205, 0), color_area=(187, 255, 255))
+        data_gt = calculate_FMA(img, mask_gt, 1, not_exist_landmark, upper_lip_gt, chin_gt, towards_right1,
+                                color=(255, 0, 0), color_point=(255, 0, 0), color_area=(255, 0, 0))
+        data_pre = calculate_FMA(img, mask_pre, 1, not_exist_landmark, upper_lip_pre, chin_pre, towards_right2,
+                                 color=(205, 205, 0), color_point=(205, 205, 0), color_area=(205, 205, 0))
     elif metric == 'PL' or metric == 'MML':
         MML_img = img.copy()
         # 颜面轮廓线（FPL） & 颜面轮廓（PL）距离     -----> 完成
-        big_distance, position, big_head_point_gt = calculate_PL(img, mask_gt, 4, not_exist_landmark, under_midpoint_gt,
-                                                                 nasion_gt,
-                                                                 towards_right1, color=(255, 0, 0),
-                                                                 color_point=(255, 0, 0))
-        big_distance, position, big_head_point_pre = calculate_PL(img, mask_pre, 4, not_exist_landmark,
-                                                                  under_midpoint_pre, nasion_pre,
-                                                                  towards_right2, color=(205, 205, 0),
-                                                                  color_point=(205, 205, 0),
-                                                                  color_area=(187, 255, 255))
+        data_gt, _, big_head_point_gt = calculate_PL(img, mask_gt, 4, not_exist_landmark, under_midpoint_gt,
+                                                     nasion_gt, towards_right1, color=(255, 0, 0),
+                                                     color_point=(255, 0, 0), color_area=(255, 0, 0))
+        data_pre, _, big_head_point_pre = calculate_PL(img, mask_pre, 4, not_exist_landmark, under_midpoint_pre,
+                                                       nasion_pre, towards_right2, color=(205, 205, 0),
+                                                       color_point=(205, 205, 0), color_area=(205, 205, 0))
         if metric == 'MML':
             img = MML_img
             # 下颌上颌线（MML） & 额前空间（FS）距离     -----> 完成
-            big_distance2, position2 = calculate_MML(img, mask_gt, 4, not_exist_landmark, under_midpoint_gt,
-                                                     upper_midpoint_gt, big_head_point_gt,
-                                                     towards_right, color=(255, 0, 0), color_point=(255, 0, 0))
-            big_distance2, position2 = calculate_MML(img, mask_pre, 4, not_exist_landmark, under_midpoint_pre,
-                                                     upper_midpoint_pre, big_head_point_pre,
-                                                     towards_right, color=(205, 205, 0), color_point=(205, 205, 0),
-                                                     color_area=(187, 255, 255))
+            data_gt, _ = calculate_MML(img, mask_gt, 4, not_exist_landmark, under_midpoint_gt, upper_midpoint_gt,
+                                       big_head_point_gt, towards_right, color=(255, 0, 0), color_point=(255, 0, 0),
+                                       color_area=(255, 0, 0))
+            data_pre, _ = calculate_MML(img, mask_pre, 4, not_exist_landmark, under_midpoint_pre, upper_midpoint_pre,
+                                        big_head_point_pre, towards_right, color=(205, 205, 0),
+                                        color_point=(205, 205, 0), color_area=(205, 205, 0))
     if show_img:
+        # 添加掩膜  °： '\u00B0'
+        img[img.shape[0] - 110:img.shape[0] - 30, :250, :] = 0
+        cv2.putText(img, 'GT: : ' + str(round(data_gt, 2)), [20, img.shape[0] - 80], cv2.FONT_HERSHEY_COMPLEX, 1.0,
+                    (255, 0, 0), 2)
+        cv2.putText(img, 'Pre: : ' + str(round(data_pre, 2)), [20, img.shape[0] - 45], cv2.FONT_HERSHEY_COMPLEX, 1.0,
+                    (205, 205, 0), 2)
         plt.imshow(img)
         plt.title(metric)
-    plt.show()
+        plt.show()
 
 
 def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True, show_img: bool = False,
@@ -278,7 +282,7 @@ def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True, show_
 
     towards_right1 = towards_right(Image.fromarray(img), landmark)  # 标签是否其中在图像右侧
     for j in range(1, 5):
-        mask_ = torch.where(mask==j)
+        mask_ = torch.where(mask == j)
         img[..., 0][mask_] = 200
         img[..., 1][mask_] = 100
         img[..., 2][mask_] = 200
@@ -313,9 +317,21 @@ def calculate_metrics(rgb_img, gt, not_exist_landmark, is_gt: bool = True, show_
     else:
         FS, MML = -1, 0
     data = {'IFA': angle_IFA, 'MNM': angle_MNM, 'FMA': angle_FMA, 'PL': PL, 'FPL': FPL, 'FS': FS, 'MML': MML}
-    plt.title('gt' if is_gt else 'pre')
+
     if show_img:
+        # 添加掩膜  °： '\u00B0'
+        img[img.shape[0] - 215:img.shape[0] - 25, :250, :] = 0
+        cv2.putText(img, 'IFA : ' + str(round(angle_IFA, 2)), [20, img.shape[0] - 180], cv2.FONT_HERSHEY_COMPLEX, 1.0,
+                    (173, 255, 47), 2)
+        cv2.putText(img, 'MNM : ' + str(round(angle_MNM, 2)), [20, img.shape[0] - 145], cv2.FONT_HERSHEY_COMPLEX, 1.0,
+                    (255, 215, 0), 2)
+        cv2.putText(img, 'FMA : ' + str(round(angle_FMA, 2)), [20, img.shape[0] - 110], cv2.FONT_HERSHEY_COMPLEX, 1.0,
+                    (255, 106, 106), 2)
+        cv2.putText(img, 'PL : ' + str(round(PL, 2)), [20, img.shape[0] - 75], cv2.FONT_HERSHEY_COMPLEX, 1.0,
+                    (0, 191, 255), 2)
+        cv2.putText(img, 'FS : ' + str(round(FS, 2)), [20, img.shape[0] - 40], cv2.FONT_HERSHEY_COMPLEX, 1.0,
+                    (155, 48, 255), 2)
+        plt.title('gt' if is_gt else 'pre')
         plt.imshow(img)
         plt.show()
     return data
-

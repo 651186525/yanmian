@@ -56,11 +56,8 @@ def calculate_FMA(rgb_img, mask, mask_label, not_exist_landmark, upper_lip, chin
     for i in [chin, upper_lip]:
         cv2.circle(rgb_img, i, 3, color_point, -1)
     h_img = rgb_img.shape[0]
-    # contours, up_contours, left_point, right_point = get_contours(mask, mask_label, h_img, ori_method=True)
-    # # 得到上缘轮廓上最适合用于连线的点
-    # jaw_keypoint, jaw_keypoint2 = smallest_area_point(up_contours, left_point, right_point, h_img, towards_right)
     # todo 优化，使用求最小外接矩形的方法，仍有瑕疵(外接矩阵并不是想要的矩阵）
-    jaw_keypoint, jaw_keypoint2 = get_contours(mask, mask_label, h_img, ori_method=False)
+    jaw_keypoint, jaw_keypoint2= get_contours(mask, mask_label, h_img, towards_right=towards_right)
     angle_FMA, keypoint_FMA = get_angle_keypoint([chin, upper_lip], [jaw_keypoint, jaw_keypoint2], h_img)
     cv2.line(rgb_img, chin, keypoint_FMA, color=color, thickness=2)
     cv2.line(rgb_img, jaw_keypoint2, keypoint_FMA, color=color, thickness=2)
@@ -105,7 +102,6 @@ def calculate_MML(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint,
     # 求得上下颌骨连线MML 与 下颌骨额骨点连线的位置关系 ， 前(阴性-1），后（阳性 1），或重合（0）
     position = 1 if distance > 0 else 0 if distance==0 else -1
     # position = get_position([under_midpoint, upper_midpoint], [under_midpoint, big_head_point], h_img)
-    print(position)
     # 画曲线：cv2.line(lineType=cv2.LINE_AA)
 
     cv2.line(rgb_img, under_midpoint, line_keypoint, color=color, thickness=2)
