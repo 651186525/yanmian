@@ -7,3 +7,4 @@
 /detec*
 /data/measure
 /model
+/data/*.txt

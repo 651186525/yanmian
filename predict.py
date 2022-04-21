@@ -28,8 +28,8 @@ def main():
     with open(test_txt) as read:
         json_list = [line.strip() for line in read.readlines() if len(line.strip()) > 0]
 
-    mean = (0.2333, 0.2338, 0.2342)
-    std = (0.2198, 0.2202, 0.2203)
+    mean = (0.2342, 0.2346, 0.2350)
+    std = (0.2203, 0.2206, 0.2207)
     index = {8: 'upper_lip', 9: 'under_lip', 10: 'upper_midpoint', 11: 'under_midpoint',
              12: 'chin', 13: 'nasion'}
 
@@ -52,7 +52,7 @@ def main():
 
     model2 = True
     if model2:
-        weights_poly_curve = './model/poly_curve/data3_ROI30_no_0.7095/best_model.pth'
+        weights_poly_curve = './model/poly_curve/data4_Adam_ROI30_no_0.7337/best_model.pth'
         model_poly_curve = UNet(in_channels=3, num_classes=5, base_c=32)
         model_poly_curve.load_state_dict(torch.load(weights_poly_curve, map_location='cpu')['model'])
         model_poly_curve.to(device)
@@ -119,17 +119,17 @@ def main():
                     plt.imshow(img)
                     plt.show()
                 # 分指标展示'IFA', 'MNM', 'FMA', 'PL', 'MML'
-                for metric in ['IFA', 'MNM', 'FMA', 'PL', 'MML']:
-                    show_one_metric(original_img, target, pre_target, metric, not_exist_landmark, show_img=True)
-                #  计算颜面的各个指标
-                # pre_data = calculate_metrics(original_img, pre_target, not_exist_landmark, is_gt=False, show_img=True,
-                #                              compute_MML=True)
-                # gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=True,
-                #                             compute_MML=True)
-                #
-                # for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
-                #     result_pre[key].append(pre_data[key])
-                #     result_gt[key].append(gt_data[key])
+                # for metric in ['IFA', 'MNM', 'FMA', 'PL', 'MML']:
+                #     show_one_metric(original_img, target, pre_target, metric, not_exist_landmark, show_img=True)
+                # 计算颜面的各个指标
+                pre_data = calculate_metrics(original_img, pre_target, not_exist_landmark, is_gt=False, show_img=True,
+                                             compute_MML=True)
+                gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=True,
+                                            compute_MML=True)
+
+                for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
+                    result_pre[key].append(pre_data[key])
+                    result_gt[key].append(gt_data[key])
 
     # 评估 mse误差   var100_mse_Rightcrop最佳
     for i in range(8, 14):

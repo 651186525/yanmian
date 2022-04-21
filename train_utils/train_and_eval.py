@@ -44,7 +44,6 @@ def criterion(inputs, target, num_classes: int = 2, dice: bool = True, mse:bool 
             loss += nn.functional.mse_loss(pre, target_)
         # 总的损失为： 整幅图像的交叉熵损失和所有类别的dice损失之和
         losses[name] = loss
-        print(loss)
     if len(losses) == 1:
         return losses['out']
 

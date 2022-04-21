@@ -68,8 +68,8 @@ def main(args):
     # segmentation nun_classes + background
     num_classes = args.num_classes + 1
 
-    mean = (0.2333, 0.2338, 0.2342)
-    std = (0.2198, 0.2202, 0.2203)
+    mean = (0.2342, 0.2346, 0.2350)
+    std = (0.2203, 0.2206, 0.2207)
 
     # 用来保存coco_info的文件
     results_file = "var100_ROI30.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -82,6 +82,7 @@ def main(args):
                                  data_type='val',
                                  transforms=get_transform(train=False, mean=mean, std=std), resize=[320,320])
 
+    print('train: ' , len(train_dataset), '    val: ', len(val_dataset))
     print("Creating data loaders")
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -236,7 +237,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/poly_curve/data3_ROI30_no', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/poly_curve/data4_Adam_ROI30_no', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     # 不训练，仅测试

@@ -102,6 +102,7 @@ class YanMianDataset(Dataset):
                 cv2.line(poly_curve, points_array[j], points_array[j + 1], color=label-3, thickness=3)
         # as_tensor共享内存，tensor()则复制一份
         poly_curve = torch.as_tensor(poly_curve)
+
         # 得到标注的ROI区域图像
         if self.pre_roi:
             box = self.roi[json_dir]
@@ -200,9 +201,9 @@ def towards_right(img, landmarks):
 #     print(i)
 
 
-# train data 734
-# val data 94
-# test data 89
+# train data 1491
+# val data 85
+# test data 84
 
 # 第一轮标注错误情况
 # 试标 22张不能用
@@ -213,3 +214,5 @@ def towards_right(img, landmarks):
 # 1 curve: 3, 5 landmark:6, 上颌骨（下颌骨）未被标注（无label）:17, 存在曲线未被标注（无label）:1
 # 第三轮标注错误情况
 # 1 curve: 1, 5 landmark: 5, 上颌骨（下颌骨）未被标注（无label）:2, 存在曲线未被标注（无label）:0
+# 第四轮标注错误情况
+# 1 curve: 1, 5 landmark: 5, 上颌骨（下颌骨）未被标注（无label）:9, 存在曲线未被标注（无label）:0
