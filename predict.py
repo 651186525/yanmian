@@ -110,7 +110,7 @@ def main():
     model = create_model(num_classes=2)
 
     # load train weights
-    train_weights = "./model/detec/data3/best_model.pth"
+    train_weights = "./model/detec/data4_sgd_pretrain_0.9129/best_model.pth"
     assert os.path.exists(train_weights), "{} file dose not exist.".format(train_weights)
     model.load_state_dict(torch.load(train_weights, map_location=device)["model"])
     model.to(device)
@@ -177,7 +177,7 @@ def main():
     print(np.mean(iou))
     # 将预测结果写入json文件
     boxes_json = {i: [int(k) for k in j] for i, j in boxes_file.items()}
-    with open('./data/boxes_file2.json', 'w') as f:
+    with open('./data/data4_boxes_file.json', 'w') as f:
         json.dump(boxes_json, f)
 
 if __name__ == '__main__':

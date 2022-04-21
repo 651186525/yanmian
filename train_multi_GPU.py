@@ -98,9 +98,9 @@ def main(args):
         model_without_ddp = model.module
 
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(
-        params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    # optimizer = torch.optim.Adam(params)
+    # optimizer = torch.optim.SGD(
+    #     params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam(params)
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
 
     # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_gamma)
@@ -164,6 +164,7 @@ def main(args):
                                os.path.join(args.output_dir, f'best_model.pth'))
                 best_iou = iou
                 print('IOU:    ', iou)
+            print('best IOU:', best_iou)
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
@@ -179,7 +180,7 @@ if __name__ == "__main__":
     # 训练文件的根目录
     parser.add_argument('--data-path', default='./', help='dataset')
     # 训练设备类型
-    parser.add_argument('--device', default='cuda:3', help='device')
+    parser.add_argument('--device', default='cuda:1', help='device')
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=1, type=int, help='num_classes')
     # 每块GPU上的batch_size
@@ -213,7 +214,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=50, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/detec/data4', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/detec/data4_sgd_pretrain', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     parser.add_argument('--aspect-ratio-group-factor', default=3, type=int)

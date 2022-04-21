@@ -7,3 +7,4 @@
 /detec_backbone/*.pth
 /data/measure
 /model
+/data/*.txt
