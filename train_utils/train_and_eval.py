@@ -44,7 +44,6 @@ def criterion(inputs, target, num_classes: int = 2, dice: bool = True, mse:bool 
             loss += nn.functional.mse_loss(pre, target_)
         # 总的损失为： 整幅图像的交叉熵损失和所有类别的dice损失之和
         losses[name] = loss
-        print(loss)
     if len(losses) == 1:
         return losses['out']
 
@@ -56,6 +55,7 @@ def evaluate(model, data_loader, device, num_classes):
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Test:'
     dice = 0
+    loss = 0
     # dice_test = 0
     mse = {i:[] for i in range(8, 14)}
     with torch.no_grad():
@@ -67,6 +67,12 @@ def evaluate(model, data_loader, device, num_classes):
 
             # dice_target = build_target(mask, 5)
             # dice += multiclass_dice_coeff(output, dice_target)
+            # 计算loss
+            mask = target['mask'].to(output.device)
+            roi_mask = torch.ne(mask, 255)
+            pre = output[roi_mask]
+            target_ = mask[roi_mask]
+            loss += nn.functional.mse_loss(pre, target_)
 
             # 计算mse
             for i, data in  enumerate(output[0]):
@@ -74,7 +80,7 @@ def evaluate(model, data_loader, device, num_classes):
                 y,x = np.where(data==data.max())
                 point = landmark[i+8]  # label=i+8
                 mse[i+8].append(math.sqrt(math.pow(x[0]-point[0],2)+math.pow(y[0]-point[1],2)))
-
+    print('val loss:', loss/len(data_loader))
     mse2 = {}
     for i in range(8,14):
         mse2[i] = sum(mse[i])/len(data_loader)

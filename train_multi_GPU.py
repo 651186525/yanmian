@@ -71,8 +71,8 @@ def main(args):
     # segmentation nun_classes + background
     num_classes = args.num_classes + 1
 
-    mean = (0.2333, 0.2338, 0.2342)
-    std = (0.2198, 0.2202, 0.2203)
+    mean = (0.2342, 0.2346, 0.2350)
+    std = (0.2203, 0.2206, 0.2207)
 
     # 用来保存coco_info的文件
     results_file = "var100_ROI30.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -118,10 +118,10 @@ def main(args):
 
     params_to_optimize = [p for p in model_without_ddp.parameters() if p.requires_grad]
 
-    optimizer = torch.optim.SGD(
-        params_to_optimize,
-        lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    # optimizer = torch.optim.Adam(params_to_optimize, lr=args.lr)   # lr = 2e-4
+    # optimizer = torch.optim.SGD(
+    #     params_to_optimize,
+    #     lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam(params_to_optimize)   # lr = 2e-4
 
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
 
@@ -182,8 +182,6 @@ def main(args):
             m_mse = m_mse/len(mse['mse_classes'])
             if m_mse < best_mse:
                 best_mse = m_mse
-            # if best_dice < dice:
-            #     best_dice = dice
             else:
                 continue
 
@@ -222,12 +220,12 @@ if __name__ == "__main__":
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=5, type=int, help='num_classes')
     # 每块GPU上的batch_size
-    parser.add_argument('-b', '--batch-size', default=8, type=int,
+    parser.add_argument('-b', '--batch-size', default=16, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
     # 训练的总epoch数
-    parser.add_argument('--epochs', default=300, type=int, metavar='N',
+    parser.add_argument('--epochs', default=100, type=int, metavar='N',
                         help='number of total epochs to run')
     # 是否使用同步BN(在多个GPU之间同步)，默认不开启，开启后训练速度会变慢
     parser.add_argument('--sync_bn', type=bool, default=False, help='whether using SyncBatchNorm')
@@ -249,7 +247,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/heatmap/var100_ROI30', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/heatmap/data4_Adam_var100_max20', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     # 不训练，仅测试
@@ -275,4 +273,4 @@ if __name__ == "__main__":
         mkdir(args.output_dir)
 
     main(args)
-    # CUDA_VISIBLE_DEVICES=4,5 torchrun --nproc_per_node=2 train_multi_GPU.py
+    # CUDA_VISIBLE_DEVICES=6,7 torchrun --nproc_per_node=2 train_multi_GPU.py

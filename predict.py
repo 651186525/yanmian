@@ -26,8 +26,8 @@ def main():
     with open(test_txt) as read:
         json_list = [line.strip() for line in read.readlines() if len(line.strip()) > 0]
 
-    mean = (0.2333, 0.2338, 0.2342)
-    std = (0.2198, 0.2202, 0.2203)
+    mean = (0.2342, 0.2346, 0.2350)
+    std = (0.2203, 0.2206, 0.2207)
     index = {8: 'upper_lip', 9: 'under_lip', 10: 'upper_midpoint', 11: 'under_midpoint',
              12: 'chin', 13: 'nasion'}
 

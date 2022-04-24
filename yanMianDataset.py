@@ -94,7 +94,7 @@ class YanMianDataset(Dataset):
         # heatmap 维度为 c,h,w 因为ToTensor会将Image(c.w,h)也变为(c,h,w)
         for label in landmark:
             point = landmark[label]
-            temp_heatmap = make_2d_heatmap(point, poly_curve.shape, max_value=200, var=100)
+            temp_heatmap = make_2d_heatmap(point, poly_curve.shape, max_value=20, var=100)
             mask[label-8] = temp_heatmap
 
         # 将位于右上角的图片翻转到左上角
