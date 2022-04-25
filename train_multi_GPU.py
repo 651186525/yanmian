@@ -68,6 +68,7 @@ def main(args):
     # segmentation nun_classes + background
     num_classes = args.num_classes + 1
 
+    # todo 计算ROI区域的mean和std
     mean = (0.2342, 0.2346, 0.2350)
     std = (0.2203, 0.2206, 0.2207)
 

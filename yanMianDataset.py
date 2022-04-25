@@ -39,7 +39,7 @@ class YanMianDataset(Dataset):
                               for line in read.readlines() if len(line.strip()) > 0]
 
         if pre_roi:
-            roi_str = open('./data/boxes_file2.json')
+            roi_str = open('./data/data4_boxes_file.json')
             roi_data = json.load(roi_str)
             roi_str.close()
             self.roi = roi_data
@@ -178,17 +178,24 @@ def towards_right(img, landmarks):
     """
     根据标记点位于图像的方位判断图片的朝向
     """
-    if isinstance(img, torch.Tensor):
-        h, w = img.shape[-2:]
-    else:
-        w, h = img.size
-    w_center, h_center = w/2, h/2
+    # if isinstance(img, torch.Tensor):
+    #     h, w = img.shape[-2:]
+    # else:
+    #     w, h = img.size
+    # w_center, h_center = w/2, h/2
+    # num = 0
+    # # 统计landmark中有多少个点位于图像右上角
+    # for i in landmarks:
+    #     if int(landmarks[i][0]) > w_center:
+    #         num += 1
+    # if num >= 1/2 * len(landmarks):
+    #     return True
     num = 0
-    # 统计landmark中有多少个点位于图像右上角
-    for i in landmarks:
-        if int(landmarks[i][0]) > w_center:
+    nasion = landmarks[13]
+    for i in range(8, 13):
+        if landmarks[i][0] > nasion[0]:
             num += 1
-    if num >= 1/2 * len(landmarks):
+    if num >= 3:
         return True
     return False
 

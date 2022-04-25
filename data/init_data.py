@@ -43,6 +43,32 @@ def split_data(files_path):
         print(e)
         exit(1)
 
+def dele_img(root):
+    img_dir = os.path.join(root, 'image2')
+    json_dir = os.path.join(root, 'jsons')
+    check_dir = os.path.join(root, 'check')
+
+    imgs = os.listdir(img_dir)
+    checks = os.listdir(check_dir)
+    jsons = glob.glob(os.path.join(json_dir, '*.json'))
+    jsons = [i.split('/')[-1] for i in jsons]
+    checks_exist = [False] * len(checks)
+    c  = [False] * len(checks)
+    img_exist = [False] * len(imgs)
+    for json in jsons:
+        name = json.split('_jpg')[0].split('_Jpg')[0]
+        for index, check in enumerate(checks):
+            if name+'.' in check or name+'_' in check:
+                checks_exist[index] = True
+            if name in check:
+                c[index] = True
+        for index, img in enumerate(imgs):
+            if name+'.' in img:
+                img_exist[index] = True
+    for i,j in zip(c, checks):
+        if i == False:
+            os.remove(os.path.join(check_dir,j))
+
 def nii_to_mask(nii_path=None, img_save_name=None, binary_TF=False):
     itk_img = sitk.ReadImage(nii_path)
     if binary_TF:

@@ -18,10 +18,34 @@ def time_synchronized():
     torch.cuda.synchronize() if torch.cuda.is_available() else None
     return time.time()
 
+# 8 :6.546  std: 8.884739914610249--->4.758   n
+# 9 :5.003  std: 5.1462727879574
+# 10 :5.835  std: 3.410494090034798
+# 11 :5.101  std: 2.6502286316960064
+# 12 :4.760  std: 3.7110931132125953
+# 13 :3.976  std: 2.4930232166770905
+# 8 :6.188  std: 9.021969825374907---->4.858   n
+# 9 :4.649  std: 4.387857159085874
+# 10 :5.975  std: 4.089137087442936
+# 11 :4.708  std: 2.4225453529161625
+# 12 :4.228  std: 3.7662022509774773
+# 13 :3.905  std: 2.475133130606428
+# 8 :5.747  std: 9.061464565974864  ---> 4.98    n
+# 9 :4.892  std: 5.736637119071793
+# 10 :5.975  std: 4.123275023995032
+# 11 :4.452  std: 2.626969513100775
+# 12 :3.992  std: 3.9823449439283145
+# 13 :5.032  std: 3.3033507205807804
+# 8 :5.790  std: 8.53649860285669 --->4.8229
+# 9 :4.431  std: 5.012070895221985
+# 10 :5.937  std: 3.8625779973860137
+# 11 :4.735  std: 2.2342289930749892
+# 12 :4.287  std: 4.272174405596786
+# 13 :3.794  std: 2.5706855309992163
 
 def main():
     classes = 5  # exclude background
-    weights_path = "./model/heatmap/var100_ROI30_5.947/best_model.pth"  # 127, 136
+    weights_path = "./model/heatmap/data4_var75_ROI30_4.8229_best/best_model.pth"  # 127, 136
     test_txt = './data/test.txt'
     assert os.path.exists(weights_path), f"weights {weights_path} not found."
     assert os.path.exists(test_txt), f'test.txt {test_txt} not found.'
@@ -34,7 +58,7 @@ def main():
              12: 'chin', 13: 'nasion'}
 
     # get devices
-    device = torch.device("cuda:6" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("using {} device.".format(device))
 
     # create model
@@ -101,6 +125,7 @@ def main():
                 # 生成预测数据的统一格式的target{'landmark':landmark,'mask':mask}
                 pre_ROI_target, not_exist_landmark = create_predict_target(ROI_img, prediction, json_dir,
                                                                            towards_right=towards_right, deal_pre=True)
+
                 # 将ROI target 转换为原图大小
                 target = create_origin_target(ROI_target, box, original_img.size)
                 pre_target = create_origin_target(pre_ROI_target, box, original_img.size)
@@ -122,9 +147,9 @@ def main():
                 # for metric in ['IFA', 'MNM', 'FMA', 'PL', 'MML']:
                 #     show_one_metric(original_img, target, pre_target, metric, not_exist_landmark, show_img=True)
                 # 计算颜面的各个指标
-                pre_data = calculate_metrics(original_img, pre_target, not_exist_landmark, is_gt=False, show_img=True,
+                pre_data = calculate_metrics(original_img, pre_target, not_exist_landmark, is_gt=False, show_img=False,
                                              compute_MML=True)
-                gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=True,
+                gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=False,
                                             compute_MML=True)
 
                 for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
@@ -164,10 +189,10 @@ def main():
                     if temp[i] != -1:
                         pre.append(temp[i])
                         gt.append(temp_gt[i])
-            print('pre平均值:', np.mean(pre))
-            print('pre标准差:', np.std(pre))
-            print('gt平均值:', np.mean(gt))
-            print('gt标准差:', np.std(gt))
+            # print('pre平均值:', np.mean(pre))
+            # print('pre标准差:', np.std(pre))
+            # print('gt平均值:', np.mean(gt))
+            # print('gt标准差:', np.std(gt))
             error = []
             for m, n in zip(pre, gt):
                 error.append(abs(m - n))

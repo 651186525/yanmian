@@ -1,10 +1,4 @@
 .idea
-/data/data_backups
-/data/image
-/data/jsons
-/data/masks
-/data/test_img
+/data
 /detec*
-/data/measure
 /model
-/data/*.txt

@@ -8,7 +8,7 @@ def calculate_IFA(rgb_img, mask, mask_label, not_exist_landmark, nasion, chin, u
                   color=(255, 0, 0), color_point=(0, 255, 0), color_area=(200, 100, 200)):
     if any([i == j for i in [mask_label, 8, 9, 12, 13] for j in not_exist_landmark]):
         return -1
-    show_area(rgb_img, mask, mask_label, color=color_area)
+    # show_area(rgb_img, mask, mask_label, color=color_area)
     for i in [nasion, chin, upper_lip, under_lip]:
         cv2.circle(rgb_img, i, 3, color, -1)
     h_img = rgb_img.shape[0]
@@ -30,7 +30,7 @@ def calculate_IFA(rgb_img, mask, mask_label, not_exist_landmark, nasion, chin, u
     angle_IFA, point_IFA = get_angle_keypoint([keypoint_IFA, nasion], [chin, tuchu_point], h_img)
     cv2.line(rgb_img, nasion, point_IFA, color=color, thickness=2)
     cv2.line(rgb_img, chin, point_IFA, color=color, thickness=2)
-    cv2.putText(rgb_img, str(round(angle_IFA, 3)), point_IFA, cv2.FONT_HERSHEY_COMPLEX, 1.0, color=color, thickness=2)
+    # cv2.putText(rgb_img, str(round(angle_IFA, 3)), point_IFA, cv2.FONT_HERSHEY_COMPLEX, 1.0, color=color, thickness=2)
     return angle_IFA
 
 
@@ -44,7 +44,7 @@ def calculate_MNM(rgb_img, not_exist_landmark, nasion, upper_midpoint, under_mid
     angle_MNM, point_MNM = get_angle_keypoint([upper_midpoint, nasion], [under_midpoint, nasion], h_img)
     cv2.line(rgb_img, upper_midpoint, nasion, color=color, thickness=2)
     cv2.line(rgb_img, under_midpoint, nasion, color=color, thickness=2)
-    cv2.putText(rgb_img, str(round(angle_MNM, 3)), point_MNM, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
+    # cv2.putText(rgb_img, str(round(angle_MNM, 3)), point_MNM, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
     return angle_MNM
 
 
@@ -61,7 +61,7 @@ def calculate_FMA(rgb_img, mask, mask_label, not_exist_landmark, upper_lip, chin
     angle_FMA, keypoint_FMA = get_angle_keypoint([chin, upper_lip], [jaw_keypoint, jaw_keypoint2], h_img)
     cv2.line(rgb_img, chin, keypoint_FMA, color=color, thickness=2)
     cv2.line(rgb_img, jaw_keypoint2, keypoint_FMA, color=color, thickness=2)
-    cv2.putText(rgb_img, str(round(angle_FMA, 3)), keypoint_FMA, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
+    # cv2.putText(rgb_img, str(round(angle_FMA, 3)), keypoint_FMA, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
     # cv2.drawContours(rgb_img, contours, contourIdx=-1, color=(0, 0, 255), thickness=3)
     return angle_FMA
 
@@ -84,7 +84,7 @@ def calculate_PL(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint, 
     # cv2.line(rgb_img, under_midpoint, nasion, color=(255,0,0),thickness=2)
     cv2.line(rgb_img, big_head_point, big_line_point, color=color, thickness=2)
     mid_point = [int((i + j) / 2) for i, j in zip(big_line_point, big_head_point)]
-    cv2.putText(rgb_img, str(round(big_distance, 3)), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
+    # cv2.putText(rgb_img, str(round(big_distance, 3)), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
     # cv2.putText(rgb_img, str(position), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
     return big_distance, position, big_head_point
 
@@ -108,7 +108,7 @@ def calculate_MML(rgb_img, mask, mask_label, not_exist_landmark, under_midpoint,
     # cv2.line(rgb_img, under_midpoint, nasion, color=(255,0,0),thickness=2)
     cv2.line(rgb_img, big_head_point, line_keypoint, color=color, thickness=2)
     mid_point = [int((i + j) / 2) for i, j in zip(line_keypoint, big_head_point)]
-    cv2.putText(rgb_img, str(round(distance, 3)), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
+    # cv2.putText(rgb_img, str(round(distance, 3)), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
     # cv2.putText(rgb_img, str(position), mid_point, cv2.FONT_HERSHEY_COMPLEX, 1.0, color, 2)
     return distance, position
 
