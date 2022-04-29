@@ -85,7 +85,7 @@ def evaluate(model, data_loader, device, num_classes):
     for i in range(8,14):
         mse2[i] = sum(mse[i])/len(data_loader)
         print(f'{i} :{sum(mse[i])/len(data_loader):.3f}')
-    return {'mse_total':mse, 'mse_classes':mse2}, dice/len(data_loader)
+    return loss/len(data_loader), {'mse_total':mse, 'mse_classes':mse2}, dice/len(data_loader)
 
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch, num_classes,

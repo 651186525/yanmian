@@ -21,7 +21,7 @@ class YanMianDataset(Dataset):
         self.data_type = data_type
 
         # read txt file and save all json file list (train/val/test)
-        json_path = os.path.join(self.root, 'jsons')
+        json_path = os.path.join(self.root, 'check_jsons')
         txt_path = os.path.join(self.root, data_type + '.txt')
         assert os.path.exists(txt_path), 'not found {} file'.format(data_type + '.txt')
         with open(txt_path) as read:
@@ -38,7 +38,7 @@ class YanMianDataset(Dataset):
 
     def __getitem__(self, index):
         img_root = os.path.join(self.root, 'image')
-        mask_root = os.path.join(self.root, 'masks')
+        mask_root = os.path.join(self.root, 'check_masks')
 
         # load json data
         json_dir = self.json_list[index]
@@ -94,7 +94,7 @@ class YanMianDataset(Dataset):
         # heatmap 维度为 c,h,w 因为ToTensor会将Image(c.w,h)也变为(c,h,w)
         for label in landmark:
             point = landmark[label]
-            temp_heatmap = make_2d_heatmap(point, poly_curve.shape, max_value=20, var=100)
+            temp_heatmap = make_2d_heatmap(point, poly_curve.shape, max_value=100, var=25)
             mask[label-8] = temp_heatmap
 
         # 将位于右上角的图片翻转到左上角

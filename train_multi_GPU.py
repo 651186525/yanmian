@@ -2,6 +2,7 @@ import time
 import os
 import datetime
 
+import matplotlib.pyplot as plt
 import torch
 
 from src import UNet
@@ -71,11 +72,12 @@ def main(args):
     # segmentation nun_classes + background
     num_classes = args.num_classes + 1
 
-    mean = (0.2342, 0.2346, 0.2350)
-    std = (0.2203, 0.2206, 0.2207)
+    mean = (0.2347, 0.2350, 0.2353)
+    std = (0.2209, 0.2211, 0.2211)
 
     # 用来保存coco_info的文件
-    results_file = "var100_ROI30.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    name = args.output_dir.split('/')[-1]
+    results_file = "./model/heatmap2/" + name + ".txt"
 
     train_dataset = YanMianDataset(args.data_path,
                                    data_type='train',
@@ -103,6 +105,7 @@ def main(args):
         sampler=test_sampler, num_workers=args.workers,
         collate_fn=train_dataset.collate_fn)
 
+    print(len(train_dataset), len(val_dataset))
     print("Creating model")
     # create model num_classes equal background + foreground classes
     model = create_model(num_classes=num_classes)
@@ -118,10 +121,10 @@ def main(args):
 
     params_to_optimize = [p for p in model_without_ddp.parameters() if p.requires_grad]
 
-    # optimizer = torch.optim.SGD(
-    #     params_to_optimize,
-    #     lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    optimizer = torch.optim.Adam(params_to_optimize)   # lr = 2e-4
+    optimizer = torch.optim.SGD(
+        params_to_optimize,
+        lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam(params_to_optimize)   # lr = 2e-4
 
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
 
@@ -147,43 +150,58 @@ def main(args):
         print(val_info)
         return
 
-    best_dice = 0.
     print("Start training")
     start_time = time.time()
     best_mse = 1000
+    best_mse_weight = 1000
+    train_losses = []
+    val_losses = []
+    mse_es = []
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
         mean_loss, lr = train_one_epoch(model, optimizer, train_data_loader, device, epoch, num_classes,
                                         lr_scheduler=lr_scheduler, print_freq=args.print_freq, scaler=scaler)
 
-        mse, dice = evaluate(model, val_data_loader, device=device, num_classes=num_classes)
-        # print(f'mse: {mse:.3f}')
-        # print(f"dice coefficient: {dice:.3f}")
+        val_loss, mse, dice = evaluate(model, val_data_loader, device=device, num_classes=num_classes)
 
-        # 只在主进程上进行写操作
-        if args.rank in [-1, 0]:
-            # write into txt
-            with open(results_file, "a") as f:
-                # 记录每个epoch对应的train_loss、lr以及验证集各指标
-                train_info = f"[epoch: {epoch}]\n" \
-                             f"train_loss: {mean_loss:.4f}\n" \
-                             f"lr: {lr:.6f}\n" \
-                             f"mse:{[round(mse['mse_classes'][i], 3) for i in range(8, 14)]}\n"
-                             # f"dice coefficient: {dice:.3f}\n" \
-
-
-                f.write(train_info + "\n\n")
-
+        s_best = False
+        save_best_weight = False
+        m_mse = 0
+        m_mse_weight = 0
         if args.save_best is True:
-            m_mse = 0
             for i in mse['mse_classes'].values():
                 m_mse += i
             m_mse = m_mse/len(mse['mse_classes'])
             if m_mse < best_mse:
                 best_mse = m_mse
-            else:
-                continue
+                s_best = True
+            # 加权版
+            weights = {8: 1.5, 9: 1, 10: 1, 11: 1.5, 12: 2, 13: 3}
+            for index in mse['mse_classes']:
+                m_mse_weight += weights[index] * mse['mse_classes'][index]
+            m_mse_weight = m_mse_weight/10
+            if m_mse_weight < best_mse_weight:
+                best_mse_weight = m_mse_weight
+                save_best_weight = True
+            print('best mse : ', best_mse, 'best weight mse:', best_mse_weight)
+            # else:
+            #     continue
+
+        # 只在主进程上进行写操作
+        # if args.rank in [-1, 0]:
+            # write into txt
+        with open(results_file, "a") as f:
+            # 记录每个epoch对应的train_loss、lr以及验证集各指标
+            train_info = f"[epoch: {epoch}]    lr: {lr:.6f}\n" \
+                         f"train_loss: {mean_loss:.4f}    val_loss: {val_loss:.4f}\n" \
+                         f"mse:{[round(mse['mse_classes'][i], 3) for i in range(8, 14)]}\n" \
+                         f"best_mse:{best_mse}    weight mse :{best_mse_weight}\n"
+            f.write(train_info + "\n\n")
+
+        train_losses.append(round(float(mean_loss), 3))
+        val_losses.append(round(float(val_loss), 3))
+        mse_es.append(round(float(m_mse), 3))
 
         if args.output_dir:
             # 只在主节点上执行保存权重操作
@@ -195,17 +213,42 @@ def main(args):
             if args.amp:
                 save_file["scaler"] = scaler.state_dict()
 
-            if args.save_best is True:
+            if save_best_weight is True:
+                save_on_master(save_file,
+                               os.path.join(args.output_dir, 'best_weight_model.pth'))
+                print('save best weight model')
+            if args.save_best is True and s_best is True:
                 save_on_master(save_file,
                                os.path.join(args.output_dir, 'best_model.pth'))
-            else:
-                save_on_master(save_file,
-                               os.path.join(args.output_dir, 'model_{}.pth'.format(epoch)))
+                print('save best model')
+            # else :
+            save_on_master(save_file,
+                           os.path.join(args.output_dir, 'model_{}.pth'.format(epoch)))
+
+    # if args.rank in [-1, 0]:
+        # write into txt
+    with open(results_file, "a") as f:
+        # 记录每个epoch对应的train_loss、lr以及验证集各指标
+        train_info = f"[best mse: {best_mse:.4f}]\n" \
+                     f"[best mse weight: {best_mse_weight:.4f}]\n"
+        f.write(train_info + "\n\n")
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
     print('best_mse:',best_mse)
+    plt.plot(train_losses)
+    plt.plot(val_losses)
+    plt.plot(mse_es)
+    plt.title(name)
+    plt.show()
+    plt.plot(train_losses)
+    plt.plot(val_losses)
+    plt.title(name)
+    plt.show()
+    plt.plot(mse_es)
+    plt.title(name)
+    plt.show()
 
 if __name__ == "__main__":
     import argparse
@@ -216,7 +259,7 @@ if __name__ == "__main__":
     # 训练文件的根目录(DRIVE)
     parser.add_argument('--data-path', default='./', help='dataset')
     # 训练设备类型
-    parser.add_argument('--device', default='cuda', help='device')
+    parser.add_argument('--device', default='cuda:7', help='device')
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=5, type=int, help='num_classes')
     # 每块GPU上的batch_size
@@ -225,7 +268,7 @@ if __name__ == "__main__":
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
     # 训练的总epoch数
-    parser.add_argument('--epochs', default=100, type=int, metavar='N',
+    parser.add_argument('--epochs', default=30, type=int, metavar='N',
                         help='number of total epochs to run')
     # 是否使用同步BN(在多个GPU之间同步)，默认不开启，开启后训练速度会变慢
     parser.add_argument('--sync_bn', type=bool, default=False, help='whether using SyncBatchNorm')
@@ -247,7 +290,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/heatmap/data4_Adam_var100_max20', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/heatmap2/check3_var25_max100', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     # 不训练，仅测试
@@ -273,4 +316,4 @@ if __name__ == "__main__":
         mkdir(args.output_dir)
 
     main(args)
-    # CUDA_VISIBLE_DEVICES=6,7 torchrun --nproc_per_node=2 train_multi_GPU.py
+    # CUDA_VISIBLE_DEVICES=5,7 torchrun --nproc_per_node=2 train_multi_GPU.py

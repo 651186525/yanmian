@@ -11,7 +11,7 @@ def split_data(files_path):
     assert os.path.exists(files_path), "path: '{}' does not exist.".format(files_path)
 
     random.seed(0)  # 设置随机种子，保证随机结果可复现
-    val_rate = 0.2
+    val_rate = 0.3
     test_ = True
 
     # 获取所有json名称
@@ -102,7 +102,7 @@ def check_data(curve, landmark, poly_points, json_dir, data_type, detele_file=Fa
 
 if __name__ == '__main__':
     root = os.getcwd()
-    input_dir = os.path.join(root, 'jsons')
+    input_dir = os.path.join(root, 'check_jsons')
     assert os.path.exists(input_dir), '输入文件路径不存在'
 
     # 划分数据集

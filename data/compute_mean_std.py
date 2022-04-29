@@ -10,6 +10,7 @@ def main():
     with open(txt_path) as read:
         train_list = [line.strip() for line in read.readlines() if len(line.strip()) > 0]
 
+    print(len(train_list))
     # 生成所有的图片名
     img_list = []
     for name_split in [name.split('_')[:-2] for name in train_list]:
@@ -59,6 +60,10 @@ def main():
     # average width: 1088.7843137254902    1040.2125340599455
     # max height: 866
     # max width: 1260
+
+    # check 3
+    # mean : [0.2347, 0.2350, 0.2353]
+    # std : [0.2209, 0.2211, 0.2211]
 
 
 if __name__ == '__main__':
