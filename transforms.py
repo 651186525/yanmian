@@ -217,7 +217,7 @@ class Resize(object):
         # resize ROI_img和mask
         img = F.resize(img, [int(height * ratio), int(width * ratio)])
         # todo 使用F.resize ,cv2.resize,mask.resize(PIL自带的),都出现了一个部位出现其他部位的边缘的情况---》
-        # 因为他们默认使用了bilinear插值
+        # 因为他们默认使用了bilinear插值, 如下颌骨 2在双线性插值过程中会计算出值为1的点
         mask = torch.nn.functional.interpolate(
             mask[None][None], scale_factor=ratio, mode="nearest", recompute_scale_factor=True)[0][0]
         # mask = F.resize(mask, [int(height * ratio), int(width * ratio)])

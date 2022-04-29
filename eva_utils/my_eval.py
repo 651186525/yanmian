@@ -126,7 +126,7 @@ def create_predict_target(img, prediction, json_dir, towards_right=True, deal_pr
                         for m, n in index:
                             temp[n, m] = 0
                         y, x = np.where(temp == 255)
-                    else:
+                    elif len(index) == 0 or len(index) >= 30:
                         break
                     if len(x) == 0:  # 此处说明处理后，额骨区域全部为0了，即预测的全部区域都为小区域，所以回到未处理的状态
                         temp = np.zeros_like(mask)

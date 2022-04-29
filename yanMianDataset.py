@@ -31,7 +31,7 @@ class YanMianDataset(Dataset):
         self.towards_right = True
 
         # read txt file and save all json file list (train/val/test)
-        json_path = os.path.join(self.root, 'jsons')
+        json_path = os.path.join(self.root, 'check_jsons')
         txt_path = os.path.join(self.root, data_type + '.txt')
         assert os.path.exists(txt_path), 'not found {} file'.format(data_type + '.txt')
         with open(txt_path) as read:
@@ -54,7 +54,7 @@ class YanMianDataset(Dataset):
 
     def __getitem__(self, index):
         img_root = os.path.join(self.root, 'image')
-        mask_root = os.path.join(self.root, 'masks')
+        mask_root = os.path.join(self.root, 'check_masks')
 
         # load json data
         json_dir = self.json_list[index]
@@ -119,6 +119,7 @@ class YanMianDataset(Dataset):
             origin_image, roi_img, mask, landmark, resize_ratio = Resize(self.resize)(origin_image, roi_img, poly_curve, landmark)
             box = [int(i*resize_ratio) for i in box]
 
+        raw_roi = roi_img
         # Image，和tensor通道组织方式不一样，但是还可以使用同一个transform是因为它内部根据类型做了处理
         if self.transforms is not None:
             roi_img, mask = self.transforms(roi_img, mask)
@@ -128,7 +129,7 @@ class YanMianDataset(Dataset):
         roi_target['landmark'] = landmark
 
         if self.pre_roi:
-            return origin_image, roi_img, roi_target, box
+            return origin_image, raw_roi, roi_img, roi_target, box
 
         return roi_img, roi_target
 

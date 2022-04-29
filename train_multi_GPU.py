@@ -69,8 +69,8 @@ def main(args):
     num_classes = args.num_classes + 1
 
     # todo 计算ROI区域的mean和std
-    mean = (0.2342, 0.2346, 0.2350)
-    std = (0.2203, 0.2206, 0.2207)
+    mean = (0.2347, 0.2350, 0.2353)
+    std = (0.2209, 0.2211, 0.2211)
 
     # 用来保存coco_info的文件
     results_file = "var100_ROI30.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -117,10 +117,10 @@ def main(args):
 
     params_to_optimize = [p for p in model_without_ddp.parameters() if p.requires_grad]
 
-    # optimizer = torch.optim.SGD(
-    #     params_to_optimize,
-    #     lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    optimizer = torch.optim.Adam(params_to_optimize, lr=args.lr, weight_decay=args.weight_decay)   # lr = 2e-4
+    optimizer = torch.optim.SGD(
+        params_to_optimize,
+        lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam(params_to_optimize, lr=args.lr, weight_decay=args.weight_decay)   # lr = 2e-4
 
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
 
@@ -157,6 +157,7 @@ def main(args):
 
         mse, dice = evaluate(model, val_data_loader, device=device, num_classes=num_classes)
         print(f"dice coefficient: {dice:.3f}")
+        print('best_dice:', best_dice)
 
         # 只在主进程上进行写操作
         if args.rank in [-1, 0]:
@@ -238,7 +239,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/poly_curve/data4_Adam_ROI30_no', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/poly_curve/check3_SGDlr0.01', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     # 不训练，仅测试
@@ -264,4 +265,4 @@ if __name__ == "__main__":
         mkdir(args.output_dir)
 
     main(args)
-    # CUDA_VISIBLE_DEVICES=4,5 torchrun --nproc_per_node=2 train_multi_GPU.py
+    # CUDA_VISIBLE_DEVICES=5,7 torchrun --nproc_per_node=2 train_multi_GPU.py

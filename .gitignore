@@ -1,4 +1,9 @@
 .idea
-/data
-/detec*
-/model
+/data/data_backups
+/data/image
+/data/jsons
+/data/masks
+/data/check_jsons
+/data/check_masks
+/data/test_img
+/detec_backbone

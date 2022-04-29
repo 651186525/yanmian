@@ -18,6 +18,20 @@ def time_synchronized():
     torch.cuda.synchronize() if torch.cuda.is_available() else None
     return time.time()
 
+def show_img(img, target, title=''):
+    img = np.array(img)
+    mask = target['mask']
+    landmark = target['landmark']
+    for j in range(1, 5):
+        mask_ = np.where(mask == j)
+        img[..., 0][mask_] = j * 15
+        img[..., 1][mask_] = j * 30 + 50
+        img[..., 2][mask_] = j * 15
+    for i in landmark.values():
+        cv2.circle(img, i, 2, (0,255,0), -1)
+    plt.title(title)
+    plt.imshow(img)
+    plt.show()
 # 8 :6.546  std: 8.884739914610249--->4.758   n
 # 9 :5.003  std: 5.1462727879574
 # 10 :5.835  std: 3.410494090034798
@@ -52,8 +66,8 @@ def main():
     with open(test_txt) as read:
         json_list = [line.strip() for line in read.readlines() if len(line.strip()) > 0]
 
-    mean = (0.2342, 0.2346, 0.2350)
-    std = (0.2203, 0.2206, 0.2207)
+    mean = (0.2347, 0.2350, 0.2353)
+    std = (0.2209, 0.2211, 0.2211)
     index = {8: 'upper_lip', 9: 'under_lip', 10: 'upper_midpoint', 11: 'under_midpoint',
              12: 'chin', 13: 'nasion'}
 
@@ -92,7 +106,7 @@ def main():
         # 生成预测图
         for index in range(len(test_data)):
             json_dir = test_data.json_list[index]
-            original_img, ROI_img, ROI_target, box = test_data[index]
+            original_img, raw_ROI, ROI_img, ROI_target, box = test_data[index]
             towards_right = test_data.towards_right
             # expand batch dimension
             ROI_img = torch.unsqueeze(ROI_img, dim=0)
@@ -135,14 +149,7 @@ def main():
 
                 if len(not_exist_landmark) > 0:
                     print(not_exist_landmark)
-                    img = np.array(original_img)
-                    for j in range(1, 5):
-                        mask_ = torch.where(pre_target['mask'] == j)
-                        img[..., 0][mask_] = j * 15
-                        img[..., 1][mask_] = j * 30 + 50
-                        img[..., 2][mask_] = j * 15
-                    plt.imshow(img)
-                    plt.show()
+                    show_img(original_img, pre_target)
                 # 分指标展示'IFA', 'MNM', 'FMA', 'PL', 'MML'
                 # for metric in ['IFA', 'MNM', 'FMA', 'PL', 'MML']:
                 #     show_one_metric(original_img, target, pre_target, metric, not_exist_landmark, show_img=True)
@@ -152,9 +159,24 @@ def main():
                 gt_data = calculate_metrics(original_img, target, not_exist_landmark=[], show_img=False,
                                             compute_MML=True)
 
+                # if round(float(dice), 3)==0.571:
+                #     s= 1
+                # errorkey = ''
                 for key in ['IFA', 'MNM', 'FMA', 'FPL', 'PL', 'MML', 'FS']:
                     result_pre[key].append(pre_data[key])
                     result_gt[key].append(gt_data[key])
+                #     if pre_data[key] != 'not' and gt_data[key] != 'not':
+                #         error = pre_data[key] - gt_data[key]
+                #     if key == 'IFA' and error > 10:
+                #         errorkey += 'IFA  '
+                #     if key == 'MNM' and error > 4:
+                #         errorkey += 'MNM  '
+                #     if key == 'FMA' and error > 8:
+                #         errorkey += 'FMA  '
+                #     if key == 'FPL' and error > 8:
+                #         errorkey += 'FPL  '
+                # if len(errorkey) > 0:
+                #     show_img(raw_ROI, pre_ROI_target, title=errorkey)
 
     # 评估 mse误差   var100_mse_Rightcrop最佳
     for i in range(8, 14):

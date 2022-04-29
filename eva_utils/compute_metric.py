@@ -283,6 +283,14 @@ def get_contours(mask, mask_label, h_img, towards_right=True):
     m2_keypoint1 = box[0]
     m2_keypoint2 = box[2] if abs(box[0][0]-box[1][0]) < abs(box[0][0]-box[2][0]) else box[1]
 
+    box_x = sorted(box, key=lambda x:x[0])
+    box_y = sorted(box, key=lambda x:x[1])
+    left, right, top, bottom = box_x[0], box_x[-1], box_y[0], box_y[-1]
+    d_left_top = np.linalg.norm(np.array(left)-np.array(top), 2)
+    d_right_top = np.linalg.norm(np.array(right) - np.array(top), 2)
+    m2_keypoint1 = top
+    m2_keypoint2 = left if d_left_top > d_right_top else right
+
     # # method 3 得到上边缘从左到右中间1/3 距离的线段
     # shift_w, shift_h = [], []
     # l_p = (right_point[0]-left_point[0]) / 3 + left_point[0]
