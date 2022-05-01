@@ -21,7 +21,7 @@ class YanMianDataset(Dataset):
         self.data_type = data_type
 
         # read txt file and save all json file list (train/val/test)
-        json_path = os.path.join(self.root, 'jsons')
+        json_path = os.path.join(self.root, 'check_jsons')
         txt_path = os.path.join(self.root, data_type + '.txt')
         assert os.path.exists(txt_path), 'not found {} file'.format(data_type + '.txt')
         with open(txt_path) as read:
@@ -78,7 +78,7 @@ class YanMianDataset(Dataset):
             idx: 输入需要获取图像的索引
         """
         img_h, img_w = self.get_height_and_width(index)
-        mask_root = os.path.join(self.root, 'masks')
+        mask_root = os.path.join(self.root, 'check_masks')
 
         # load json data
         json_dir = self.json_list[index]

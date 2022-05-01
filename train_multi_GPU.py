@@ -98,9 +98,9 @@ def main(args):
         model_without_ddp = model.module
 
     params = [p for p in model.parameters() if p.requires_grad]
-    # optimizer = torch.optim.SGD(
-    #     params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    optimizer = torch.optim.Adam(params)
+    optimizer = torch.optim.SGD(
+        params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam(params)
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
 
     # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_gamma)
@@ -124,6 +124,7 @@ def main(args):
         return
 
     train_loss = []
+    val_loss = []
     learning_rate = []
     val_map = []
     best_iou = 0
@@ -169,6 +170,16 @@ def main(args):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
     print('best IOU:', best_iou)
+    if args.rank in [-1, 0]:
+        # plot loss and lr curve
+        if len(train_loss) != 0 and len(learning_rate) != 0:
+            from plot_curve import plot_loss_and_lr
+            plot_loss_and_lr(train_loss, learning_rate, 'center_crop')
+
+        # plot mAP curve
+        if len(val_map) != 0:
+            from plot_curve import plot_map
+            plot_map(val_map, 'center_crop')
 
 
 if __name__ == "__main__":
@@ -180,7 +191,7 @@ if __name__ == "__main__":
     # 训练文件的根目录
     parser.add_argument('--data-path', default='./', help='dataset')
     # 训练设备类型
-    parser.add_argument('--device', default='cuda:1', help='device')
+    parser.add_argument('--device', default='cuda:7', help='device')
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=1, type=int, help='num_classes')
     # 每块GPU上的batch_size
@@ -214,7 +225,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=50, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/detec/data4_sgd_pretrain', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/detec/check3_SGDlr0.02', help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     parser.add_argument('--aspect-ratio-group-factor', default=3, type=int)

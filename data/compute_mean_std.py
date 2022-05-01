@@ -10,6 +10,7 @@ def main():
     with open(txt_path) as read:
         train_list = [line.strip() for line in read.readlines() if len(line.strip()) > 0]
 
+    print(len(train_list))
     # 生成所有的图片名
     img_list = []
     for name_split in [name.split('_')[:-2] for name in train_list]:
@@ -53,13 +54,16 @@ def main():
     print(f'average width : {width/len(img_list)}')
     print(f'max height : {height_max}')
     print(f'max width : {width_max}')
-    # mean: [0.22270182 0.22453914 0.22637838]  [0.22922716 0.22991307 0.23040238]
-    # std: [0.21268971 0.21371627 0.21473691]   [0.21878482 0.21936761 0.21957956]
-    # average height: 762.9803921568628     739.983651226158
-    # average width: 1088.7843137254902    1040.2125340599455
+    # mean: [0.22270182 0.22453914 0.22637838]  [0.22922716 0.22991307 0.23040238]  [0.23326538 0.23382138 0.23423279]
+    # std: [0.21268971 0.21371627 0.21473691]   [0.21878482 0.21936761 0.21957956]  [0.21978455 0.22021321 0.22034053]
+    # average height: 762.9803921568628     739.983651226158  741.8021978021978
+    # average width: 1088.7843137254902    1040.2125340599455  1036.2717282717283
     # max height: 866
     # max width: 1260
 
+    # data 4                                               # check 3
+    # mean: [0.23419478 0.23462838 0.2349651 ]         [0.2347, 0.2350, 0.2353]
+    # std: [0.22031093 0.22061494 0.2206662 ]          [0.2209, 0.2211, 0.2211]
 
 if __name__ == '__main__':
     main()
